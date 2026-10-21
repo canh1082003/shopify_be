@@ -1,0 +1,515 @@
+{
+  "shops": {
+    "shop-demo-001": {
+      "id": "shop-demo-001",
+      "shopDomain": "quickstart-watchdog.myshopify.com",
+      "shopifyShopId": "gid://shopify/Shop/82910482",
+      "name": "Quickstart Watchdog Demo",
+      "email": "merchant@quickstart-watchdog.myshopify.com",
+      "timezone": "America/New_York",
+      "currency": "USD",
+      "plan": "Shopify Plus",
+      "installedAt": "2026-09-21T03:00:00.591Z",
+      "uninstalledAt": null,
+      "isDemo": true,
+      "createdAt": "2026-09-21T03:00:00.591Z",
+      "updatedAt": "2026-10-21T03:00:00.592Z"
+    }
+  },
+  "sessions": {},
+  "orders": {
+    "shop-demo-001": [
+      {
+        "id": "ord-1001",
+        "shopId": "shop-demo-001",
+        "shopifyOrderId": "gid://shopify/Order/6102938471",
+        "orderNumber": "#1048",
+        "name": "#1048",
+        "customerName": "Sarah Jenkins",
+        "customerEmail": "sarah.j@example.com",
+        "createdAt": "2026-10-19T03:00:00.591Z",
+        "processedAt": "2026-10-19T03:00:00.591Z",
+        "cancelledAt": null,
+        "financialStatus": "paid",
+        "fulfillmentStatus": "unfulfilled",
+        "totalAmount": 184.5,
+        "currencyCode": "USD",
+        "totalItems": 2,
+        "fulfillableQuantity": 2,
+        "lineItems": [
+          {
+            "id": "item-1",
+            "title": "Noise-Canceling Wireless Earbuds",
+            "quantity": 1,
+            "fulfillableQuantity": 1,
+            "price": 129.5,
+            "sku": "NC-EAR-01"
+          },
+          {
+            "id": "item-2",
+            "title": "Protective Leather Carry Case",
+            "quantity": 1,
+            "fulfillableQuantity": 1,
+            "price": 55,
+            "sku": "CASE-LTH-01"
+          }
+        ],
+        "deadline": "2026-10-20T03:00:00.591Z",
+        "isOverdue": true,
+        "overdueMinutes": 1490,
+        "shopifyUrl": "https://admin.shopify.com/store/quickstart-watchdog/orders/6102938471",
+        "lastSyncedAt": "2026-10-21T03:33:00.955Z",
+        "updatedAt": "2026-10-21T03:50:17.337Z"
+      },
+      {
+        "id": "ord-1002",
+        "shopId": "shop-demo-001",
+        "shopifyOrderId": "gid://shopify/Order/6102938472",
+        "orderNumber": "#1047",
+        "name": "#1047",
+        "customerName": "Marcus Vance",
+        "customerEmail": "marcus.v@example.com",
+        "createdAt": "2026-10-19T13:00:00.591Z",
+        "processedAt": "2026-10-19T13:00:00.591Z",
+        "cancelledAt": null,
+        "financialStatus": "paid",
+        "fulfillmentStatus": "unfulfilled",
+        "totalAmount": 320,
+        "currencyCode": "USD",
+        "totalItems": 1,
+        "fulfillableQuantity": 1,
+        "lineItems": [
+          {
+            "id": "item-3",
+            "title": "Mechanical Ergonomic Studio Keyboard",
+            "quantity": 1,
+            "fulfillableQuantity": 1,
+            "price": 320,
+            "sku": "KB-MECH-PRO"
+          }
+        ],
+        "deadline": "2026-10-20T13:00:00.591Z",
+        "isOverdue": true,
+        "overdueMinutes": 890,
+        "shopifyUrl": "https://admin.shopify.com/store/quickstart-watchdog/orders/6102938472",
+        "lastSyncedAt": "2026-10-21T03:33:00.955Z",
+        "updatedAt": "2026-10-21T03:50:17.339Z"
+      },
+      {
+        "id": "ord-1003",
+        "shopId": "shop-demo-001",
+        "shopifyOrderId": "gid://shopify/Order/6102938473",
+        "orderNumber": "#1046",
+        "name": "#1046",
+        "customerName": "Elena Rostova",
+        "customerEmail": "elena.r@example.com",
+        "createdAt": "2026-10-19T19:00:00.591Z",
+        "processedAt": "2026-10-19T19:00:00.591Z",
+        "cancelledAt": null,
+        "financialStatus": "paid",
+        "fulfillmentStatus": "partial",
+        "totalAmount": 215,
+        "currencyCode": "USD",
+        "totalItems": 2,
+        "fulfillableQuantity": 1,
+        "lineItems": [
+          {
+            "id": "item-4",
+            "title": "Smart Sensor Desk Lamp",
+            "quantity": 1,
+            "fulfillableQuantity": 0,
+            "price": 115,
+            "sku": "LAMP-SMRT-01"
+          },
+          {
+            "id": "item-5",
+            "title": "Desk Organizer Tray (Backordered)",
+            "quantity": 1,
+            "fulfillableQuantity": 1,
+            "price": 100,
+            "sku": "TRAY-WDN-02"
+          }
+        ],
+        "deadline": "2026-10-20T19:00:00.591Z",
+        "isOverdue": true,
+        "overdueMinutes": 530,
+        "shopifyUrl": "https://admin.shopify.com/store/quickstart-watchdog/orders/6102938473",
+        "lastSyncedAt": "2026-10-21T03:33:00.955Z",
+        "updatedAt": "2026-10-21T03:50:17.341Z"
+      },
+      {
+        "id": "ord-1004",
+        "shopId": "shop-demo-001",
+        "shopifyOrderId": "gid://shopify/Order/6102938474",
+        "orderNumber": "#1045",
+        "name": "#1045",
+        "customerName": "David Chen",
+        "customerEmail": "david.c@example.com",
+        "createdAt": "2026-10-20T05:30:00.591Z",
+        "processedAt": "2026-10-20T05:30:00.591Z",
+        "cancelledAt": null,
+        "financialStatus": "paid",
+        "fulfillmentStatus": "unfulfilled",
+        "totalAmount": 95,
+        "currencyCode": "USD",
+        "totalItems": 1,
+        "fulfillableQuantity": 1,
+        "lineItems": [
+          {
+            "id": "item-6",
+            "title": "Ultra-thin MagSafe Power Bank 10000mAh",
+            "quantity": 1,
+            "fulfillableQuantity": 1,
+            "price": 95,
+            "sku": "PB-MAG-10K"
+          }
+        ],
+        "deadline": "2026-10-21T05:30:00.591Z",
+        "isOverdue": false,
+        "overdueMinutes": 0,
+        "shopifyUrl": "https://admin.shopify.com/store/quickstart-watchdog/orders/6102938474",
+        "lastSyncedAt": "2026-10-21T03:33:00.955Z",
+        "updatedAt": "2026-10-21T03:50:17.343Z"
+      },
+      {
+        "id": "ord-1005",
+        "shopId": "shop-demo-001",
+        "shopifyOrderId": "gid://shopify/Order/6102938475",
+        "orderNumber": "#1044",
+        "name": "#1044",
+        "customerName": "Aria Montgomery",
+        "customerEmail": "aria.m@example.com",
+        "createdAt": "2026-10-20T22:00:00.591Z",
+        "processedAt": "2026-10-20T22:00:00.591Z",
+        "cancelledAt": null,
+        "financialStatus": "paid",
+        "fulfillmentStatus": "unfulfilled",
+        "totalAmount": 145,
+        "currencyCode": "USD",
+        "totalItems": 3,
+        "fulfillableQuantity": 3,
+        "lineItems": [
+          {
+            "id": "item-7",
+            "title": "Braided Fast Charging Cable 2m",
+            "quantity": 2,
+            "fulfillableQuantity": 2,
+            "price": 50,
+            "sku": "CBL-BRD-2M"
+          },
+          {
+            "id": "item-8",
+            "title": "65W GaN Dual USB-C Wall Charger",
+            "quantity": 1,
+            "fulfillableQuantity": 1,
+            "price": 45,
+            "sku": "CHG-GAN-65W"
+          }
+        ],
+        "deadline": "2026-10-21T22:00:00.591Z",
+        "isOverdue": false,
+        "overdueMinutes": 0,
+        "shopifyUrl": "https://admin.shopify.com/store/quickstart-watchdog/orders/6102938475",
+        "lastSyncedAt": "2026-10-21T03:33:00.955Z",
+        "updatedAt": "2026-10-21T03:50:17.344Z"
+      },
+      {
+        "id": "ord-1006",
+        "shopId": "shop-demo-001",
+        "shopifyOrderId": "gid://shopify/Order/6102938476",
+        "orderNumber": "#1043",
+        "name": "#1043",
+        "customerName": "Liam O'Connor",
+        "customerEmail": "liam.oc@example.com",
+        "createdAt": "2026-10-20T09:00:00.591Z",
+        "processedAt": "2026-10-20T09:00:00.591Z",
+        "cancelledAt": null,
+        "financialStatus": "paid",
+        "fulfillmentStatus": "fulfilled",
+        "totalAmount": 240,
+        "currencyCode": "USD",
+        "totalItems": 1,
+        "fulfillableQuantity": 0,
+        "lineItems": [
+          {
+            "id": "item-9",
+            "title": "Minimalist Aluminum Laptop Stand",
+            "quantity": 1,
+            "fulfillableQuantity": 0,
+            "price": 240,
+            "sku": "STND-ALM-01"
+          }
+        ],
+        "deadline": "2026-10-21T09:00:00.591Z",
+        "isOverdue": false,
+        "overdueMinutes": 0,
+        "shopifyUrl": "https://admin.shopify.com/store/quickstart-watchdog/orders/6102938476",
+        "lastSyncedAt": "2026-10-21T03:33:00.955Z",
+        "updatedAt": "2026-10-21T03:50:17.345Z"
+      },
+      {
+        "id": "ord-1007",
+        "shopId": "shop-demo-001",
+        "shopifyOrderId": "gid://shopify/Order/6102938477",
+        "orderNumber": "#1042",
+        "name": "#1042",
+        "customerName": "Hannah Abbott",
+        "customerEmail": "hannah.a@example.com",
+        "createdAt": "2026-10-20T01:00:00.591Z",
+        "processedAt": "2026-10-20T01:00:00.591Z",
+        "cancelledAt": null,
+        "financialStatus": "paid",
+        "fulfillmentStatus": "fulfilled",
+        "totalAmount": 78,
+        "currencyCode": "USD",
+        "totalItems": 2,
+        "fulfillableQuantity": 0,
+        "lineItems": [
+          {
+            "id": "item-10",
+            "title": "Microfiber Screen Cleaning Kit",
+            "quantity": 2,
+            "fulfillableQuantity": 0,
+            "price": 78,
+            "sku": "CLN-KIT-02"
+          }
+        ],
+        "deadline": "2026-10-21T01:00:00.591Z",
+        "isOverdue": false,
+        "overdueMinutes": 0,
+        "shopifyUrl": "https://admin.shopify.com/store/quickstart-watchdog/orders/6102938477",
+        "lastSyncedAt": "2026-10-21T03:33:00.955Z",
+        "updatedAt": "2026-10-21T03:50:17.347Z"
+      },
+      {
+        "id": "ord-1008",
+        "shopId": "shop-demo-001",
+        "shopifyOrderId": "gid://shopify/Order/6102938478",
+        "orderNumber": "#1041",
+        "name": "#1041",
+        "customerName": "Robert Langdon",
+        "customerEmail": "robert.l@example.com",
+        "createdAt": "2026-10-19T16:00:00.591Z",
+        "processedAt": "2026-10-19T16:00:00.591Z",
+        "cancelledAt": "2026-10-19T21:00:00.591Z",
+        "financialStatus": "refunded",
+        "fulfillmentStatus": "unfulfilled",
+        "totalAmount": 110,
+        "currencyCode": "USD",
+        "totalItems": 1,
+        "fulfillableQuantity": 1,
+        "lineItems": [
+          {
+            "id": "item-11",
+            "title": "Vintage Canvas Camera Bag",
+            "quantity": 1,
+            "fulfillableQuantity": 1,
+            "price": 110,
+            "sku": "BAG-CAM-01"
+          }
+        ],
+        "deadline": "2026-10-20T16:00:00.591Z",
+        "isOverdue": false,
+        "overdueMinutes": 0,
+        "shopifyUrl": "https://admin.shopify.com/store/quickstart-watchdog/orders/6102938478",
+        "lastSyncedAt": "2026-10-21T03:33:00.955Z",
+        "updatedAt": "2026-10-21T03:50:17.349Z"
+      },
+      {
+        "id": "ord-1009",
+        "shopId": "shop-demo-001",
+        "shopifyOrderId": "gid://shopify/Order/6102938479",
+        "orderNumber": "#1040",
+        "name": "#1040",
+        "customerName": "Grace Hopper",
+        "customerEmail": "grace.h@example.com",
+        "createdAt": "2026-10-19T23:00:00.591Z",
+        "processedAt": "2026-10-19T23:00:00.591Z",
+        "cancelledAt": null,
+        "financialStatus": "pending",
+        "fulfillmentStatus": "unfulfilled",
+        "totalAmount": 450,
+        "currencyCode": "USD",
+        "totalItems": 1,
+        "fulfillableQuantity": 1,
+        "lineItems": [
+          {
+            "id": "item-12",
+            "title": "Curved Ultrawide Workspace Display",
+            "quantity": 1,
+            "fulfillableQuantity": 1,
+            "price": 450,
+            "sku": "DSP-CRV-34"
+          }
+        ],
+        "deadline": "2026-10-20T23:00:00.591Z",
+        "isOverdue": false,
+        "overdueMinutes": 0,
+        "shopifyUrl": "https://admin.shopify.com/store/quickstart-watchdog/orders/6102938479",
+        "lastSyncedAt": "2026-10-21T03:33:00.955Z",
+        "updatedAt": "2026-10-21T03:50:17.351Z"
+      },
+      {
+        "id": "ord-1010",
+        "shopId": "shop-demo-001",
+        "shopifyOrderId": "gid://shopify/Order/6102938480",
+        "orderNumber": "#1039",
+        "name": "#1039",
+        "customerName": "Zoe Kravitz",
+        "customerEmail": "zoe.k@example.com",
+        "createdAt": "2026-10-21T01:00:00.591Z",
+        "processedAt": "2026-10-21T01:00:00.591Z",
+        "cancelledAt": null,
+        "financialStatus": "paid",
+        "fulfillmentStatus": "unfulfilled",
+        "totalAmount": 64,
+        "currencyCode": "USD",
+        "totalItems": 1,
+        "fulfillableQuantity": 1,
+        "lineItems": [
+          {
+            "id": "item-13",
+            "title": "Precision Stylus Pen Gen 2",
+            "quantity": 1,
+            "fulfillableQuantity": 1,
+            "price": 64,
+            "sku": "PEN-STYL-02"
+          }
+        ],
+        "deadline": "2026-10-22T01:00:00.591Z",
+        "isOverdue": false,
+        "overdueMinutes": 0,
+        "shopifyUrl": "https://admin.shopify.com/store/quickstart-watchdog/orders/6102938480",
+        "lastSyncedAt": "2026-10-21T03:33:00.955Z",
+        "updatedAt": "2026-10-21T03:50:17.353Z"
+      }
+    ]
+  },
+  "alerts": {
+    "shop-demo-001": [
+      {
+        "id": "alert-001",
+        "shopId": "shop-demo-001",
+        "orderId": "ord-1001",
+        "orderNumber": "#1048",
+        "severity": "critical",
+        "status": "acknowledged",
+        "reason": "Order unfulfilled for 48h (threshold: 24h). Immediate fulfillment required.",
+        "elapsedHours": 48,
+        "thresholdHours": 24,
+        "createdAt": "2026-10-20T03:00:00.591Z",
+        "acknowledgedAt": "2026-10-21T03:09:33.031Z",
+        "resolvedAt": null
+      },
+      {
+        "id": "alert-002",
+        "shopId": "shop-demo-001",
+        "orderId": "ord-1002",
+        "orderNumber": "#1047",
+        "severity": "critical",
+        "status": "active",
+        "reason": "Order unfulfilled for 38h (threshold: 24h).",
+        "elapsedHours": 38,
+        "thresholdHours": 24,
+        "createdAt": "2026-10-20T13:00:00.591Z",
+        "acknowledgedAt": null,
+        "resolvedAt": null
+      },
+      {
+        "id": "alert-003",
+        "shopId": "shop-demo-001",
+        "orderId": "ord-1003",
+        "orderNumber": "#1046",
+        "severity": "critical",
+        "status": "acknowledged",
+        "reason": "Partial fulfillment delayed: 1 item outstanding after 32h.",
+        "elapsedHours": 32,
+        "thresholdHours": 24,
+        "createdAt": "2026-10-20T19:00:00.591Z",
+        "acknowledgedAt": "2026-10-20T23:00:00.591Z",
+        "resolvedAt": null
+      },
+      {
+        "id": "alert-004",
+        "shopId": "shop-demo-001",
+        "orderId": "ord-1004",
+        "orderNumber": "#1045",
+        "severity": "warning",
+        "status": "active",
+        "reason": "Deadline approaching in 2.5h (Elapsed: 21.5h / 24h).",
+        "elapsedHours": 21.5,
+        "thresholdHours": 24,
+        "createdAt": "2026-10-21T01:30:00.591Z",
+        "acknowledgedAt": null,
+        "resolvedAt": null
+      },
+      {
+        "id": "alert-005",
+        "shopId": "shop-demo-001",
+        "orderId": "ord-1007",
+        "orderNumber": "#1042",
+        "severity": "resolved",
+        "status": "resolved",
+        "reason": "All items marked fulfilled in Shopify.",
+        "elapsedHours": 26,
+        "thresholdHours": 24,
+        "createdAt": "2026-10-20T21:00:00.591Z",
+        "acknowledgedAt": null,
+        "resolvedAt": "2026-10-20T23:00:00.591Z"
+      }
+    ]
+  },
+  "settings": {
+    "shop-demo-001": {
+      "id": "settings-demo-001",
+      "shopId": "shop-demo-001",
+      "overdueThresholdHours": 24,
+      "warningLeadTimeHours": 4,
+      "emailEnabled": true,
+      "notificationEmail": "anhnbk113@gmail.com",
+      "updatedAt": "2026-10-21T03:26:59.998Z"
+    }
+  },
+  "notificationLogs": {
+    "shop-demo-001": [
+      {
+        "id": "log-1792553210880",
+        "shopId": "shop-demo-001",
+        "recipient": "anhnbk113@gmail.com",
+        "subject": "🔔 [Test Alert] Order Watchdog Email Notification System",
+        "deliveryStatus": "simulated_no_credentials",
+        "errorMessage": "SMTP credentials (SMTP_HOST / SMTP_USER) not configured in backend/.env. Simulated delivery logged for audit.",
+        "sentAt": "2026-10-21T03:26:50.880Z"
+      },
+      {
+        "id": "log-1792552181968",
+        "shopId": "shop-demo-001",
+        "recipient": "merchant@teststore.com",
+        "subject": "🔔 [Test Alert] Order Watchdog Email Notification System",
+        "deliveryStatus": "simulated_no_credentials",
+        "errorMessage": "SMTP credentials (SMTP_HOST / SMTP_USER) not configured in backend/.env. Simulated delivery logged for audit.",
+        "sentAt": "2026-10-21T03:09:41.968Z"
+      },
+      {
+        "id": "log-001",
+        "shopId": "shop-demo-001",
+        "alertId": "alert-001",
+        "recipient": "merchant@quickstart-watchdog.myshopify.com",
+        "subject": "[Critical Alert] Order #1048 exceeded 24h fulfillment threshold",
+        "deliveryStatus": "simulated_no_credentials",
+        "errorMessage": null,
+        "sentAt": "2026-10-20T03:00:00.591Z"
+      },
+      {
+        "id": "log-002",
+        "shopId": "shop-demo-001",
+        "alertId": "alert-002",
+        "recipient": "merchant@quickstart-watchdog.myshopify.com",
+        "subject": "[Critical Alert] Order #1047 exceeded 24h fulfillment threshold",
+        "deliveryStatus": "simulated_no_credentials",
+        "errorMessage": null,
+        "sentAt": "2026-10-20T13:00:00.591Z"
+      }
+    ]
+  }
+}
