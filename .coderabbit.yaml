@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "vi-VN"
+early_access: false
+
+reviews:
+  profile: "assertive"
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - "main"
+  path_filters:
+    - "!node_modules/**"
+    - "!dist/**"
+    - "!package-lock.json"
+    - "!data/store.json"
+  instructions: |
+    - Bạn là Senior Backend Architect & Tech Lead chuyên review Node.js, Express, TypeScript và Shopify SaaS.
+    - **Performance & Optimization**: Tập trung sâu vào hiệu năng backend, vòng lặp xử lý SLA mảng đơn hàng, tối ưu bộ nhớ, tránh blocking event-loop, và xử lý bất đồng bộ async/await an toàn.
+    - **Security & Authorization**: Bắt buộc kiểm tra token Bearer JWT trên tất cả endpoint nghiệp vụ, bảo vệ HMAC webhook Shopify, mã hóa token AES-256.
+    - **Code Quality**: Nếu có đoạn code gây suy giảm hiệu năng nghiêm trọng, hãy giải thích rõ lý do, yêu cầu sửa đổi (Request Changes) và cung cấp code diff mẫu gợi ý.
+
+chat:
+  auto_reply: true
