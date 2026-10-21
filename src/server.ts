@@ -3,6 +3,8 @@ import { config } from './config';
 import { monitorService } from './services/monitor.service';
 import { repository } from './db/repository';
 
+import { connectDatabase } from './databases';
+
 const PORT = config.port;
 
 let monitoringTimer: NodeJS.Timeout | null = null;
@@ -20,6 +22,16 @@ const server = app.listen(PORT, async () => {
   console.log(`🌐 Shopify Integration: http://localhost:${PORT}/api/integrations/shopify/status`);
   console.log(`🌐 Allowed Client: ${config.clientOrigin}`);
   console.log(`======================================================\n`);
+
+  // Connect to MongoDB Atlas
+  try {
+    const isConnected = await connectDatabase();
+    if (isConnected) {
+      await repository.syncWithMongo();
+    }
+  } catch (err) {
+    console.error('[Database] Initialization error:', err);
+  }
 
   // Initial evaluation pass
   try {
