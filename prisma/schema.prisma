@@ -2,8 +2,9 @@
 // Multi-tenant architecture for Shopify App Store production deployment
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider     = "mysql"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma"
 }
 
 generator client {

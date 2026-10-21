@@ -10,6 +10,15 @@ import {
   OrderFilterQuery,
   PaginatedResult,
 } from '../types';
+import { isMongoConnected } from './mongo';
+import {
+  ShopModel,
+  SessionModel,
+  OrderModel,
+  AlertModel,
+  SettingsModel,
+  NotificationLogModel,
+} from '../models';
 
 interface DatabaseSchema {
   shops: Record<string, Shop>;
@@ -529,6 +538,11 @@ export class Repository {
       };
     }
     this.persist();
+    if (isMongoConnected()) {
+      ShopModel.findByIdAndUpdate(shop.id, { ...shop, _id: shop.id }, { upsert: true }).catch((e) =>
+        console.error('[Repository] MongoDB upsertShop error:', e)
+      );
+    }
     return this.db.shops[shop.id];
   }
 
@@ -540,6 +554,11 @@ export class Repository {
   public async saveSession(session: ShopifySession): Promise<void> {
     this.db.sessions[session.shopId] = { ...session, updatedAt: new Date().toISOString() };
     this.persist();
+    if (isMongoConnected()) {
+      SessionModel.findByIdAndUpdate(session.shopId, { ...session, _id: session.id }, { upsert: true }).catch((e) =>
+        console.error('[Repository] MongoDB saveSession error:', e)
+      );
+    }
   }
 
   // Settings Operations
@@ -580,6 +599,11 @@ export class Repository {
     };
     this.db.settings[shopId] = updated;
     this.persist();
+    if (isMongoConnected()) {
+      SettingsModel.findOneAndUpdate({ shopId }, { ...updated, _id: updated.id }, { upsert: true }).catch((e) =>
+        console.error('[Repository] MongoDB updateSettings error:', e)
+      );
+    }
     return updated;
   }
 
@@ -665,6 +689,11 @@ export class Repository {
       this.db.orders[shopId].unshift({ ...order, updatedAt: new Date().toISOString() });
     }
     this.persist();
+    if (isMongoConnected()) {
+      OrderModel.findByIdAndUpdate(order.id, { ...order, _id: order.id, shopId }, { upsert: true }).catch((e) =>
+        console.error('[Repository] MongoDB upsertOrder error:', e)
+      );
+    }
     return order;
   }
 
@@ -723,6 +752,11 @@ export class Repository {
       this.db.alerts[shopId].unshift(alert);
     }
     this.persist();
+    if (isMongoConnected()) {
+      AlertModel.findByIdAndUpdate(alert.id, { ...alert, _id: alert.id, shopId }, { upsert: true }).catch((e) =>
+        console.error('[Repository] MongoDB upsertAlert error:', e)
+      );
+    }
     return alert;
   }
 
@@ -759,6 +793,11 @@ export class Repository {
     }
     this.db.notificationLogs[log.shopId].unshift(log);
     this.persist();
+    if (isMongoConnected()) {
+      NotificationLogModel.findByIdAndUpdate(log.id, { ...log, _id: log.id, shopId: log.shopId }, { upsert: true }).catch((e) =>
+        console.error('[Repository] MongoDB addNotificationLog error:', e)
+      );
+    }
   }
 
   public async getNotificationLogs(shopId: string, limit = 20): Promise<NotificationLog[]> {
@@ -828,6 +867,67 @@ export class Repository {
     }
 
     return points;
+  }
+
+  // MongoDB Atlas Synchronization
+  public async syncWithMongo(): Promise<void> {
+    if (!isMongoConnected()) return;
+    try {
+      const count = await ShopModel.countDocuments();
+      if (count === 0) {
+        console.log('[Repository] Seeding demo data to MongoDB Atlas collections...');
+        for (const shop of Object.values(this.db.shops)) {
+          await ShopModel.findByIdAndUpdate(shop.id, { ...shop, _id: shop.id }, { upsert: true });
+        }
+        for (const s of Object.values(this.db.settings)) {
+          await SettingsModel.findByIdAndUpdate(s.id, { ...s, _id: s.id }, { upsert: true });
+        }
+        for (const shopId of Object.keys(this.db.orders)) {
+          for (const order of this.db.orders[shopId]) {
+            await OrderModel.findByIdAndUpdate(order.id, { ...order, _id: order.id, shopId }, { upsert: true });
+          }
+        }
+        for (const shopId of Object.keys(this.db.alerts)) {
+          for (const alert of this.db.alerts[shopId]) {
+            await AlertModel.findByIdAndUpdate(alert.id, { ...alert, _id: alert.id, shopId }, { upsert: true });
+          }
+        }
+        for (const shopId of Object.keys(this.db.notificationLogs)) {
+          for (const log of this.db.notificationLogs[shopId]) {
+            await NotificationLogModel.findByIdAndUpdate(log.id, { ...log, _id: log.id, shopId: log.shopId }, { upsert: true });
+          }
+        }
+        console.log('[Repository] Demo data seeded successfully to MongoDB Atlas!');
+      } else {
+        console.log(`[Repository] MongoDB Atlas already has ${count} shop(s). Syncing from Atlas...`);
+        const mongoShops = await ShopModel.find().lean();
+        for (const s of mongoShops) {
+          this.db.shops[s._id] = { ...(s as any), id: s._id };
+        }
+        const mongoOrders = await OrderModel.find().lean();
+        for (const o of mongoOrders) {
+          if (!this.db.orders[o.shopId]) this.db.orders[o.shopId] = [];
+          const idx = this.db.orders[o.shopId].findIndex((x) => x.id === o._id);
+          const orderObj = { ...(o as any), id: o._id };
+          if (idx >= 0) this.db.orders[o.shopId][idx] = orderObj;
+          else this.db.orders[o.shopId].push(orderObj);
+        }
+        const mongoAlerts = await AlertModel.find().lean();
+        for (const a of mongoAlerts) {
+          if (!this.db.alerts[a.shopId]) this.db.alerts[a.shopId] = [];
+          const idx = this.db.alerts[a.shopId].findIndex((x) => x.id === a._id);
+          const alertObj = { ...(a as any), id: a._id };
+          if (idx >= 0) this.db.alerts[a.shopId][idx] = alertObj;
+          else this.db.alerts[a.shopId].push(alertObj);
+        }
+        const mongoSettings = await SettingsModel.find().lean();
+        for (const st of mongoSettings) {
+          this.db.settings[st.shopId] = { ...(st as any), id: st._id };
+        }
+      }
+    } catch (err) {
+      console.error('[Repository] Error syncing with MongoDB:', err);
+    }
   }
 }
 
