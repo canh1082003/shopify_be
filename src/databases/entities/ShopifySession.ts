@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
-export interface IShopifySession extends Document {
+export interface IShopifySession extends Document<string> {
+  _id: string;
   shopId: string;
   sessionType: 'offline' | 'online';
   encryptedAccessToken: string;
@@ -14,6 +15,7 @@ export interface IShopifySession extends Document {
 
 const ShopifySessionSchema: Schema = new Schema(
   {
+    _id: { type: String, default: () => new mongoose.Types.ObjectId().toString() },
     shopId: { type: String, required: true, index: true },
     sessionType: { type: String, enum: ['offline', 'online'], default: 'offline' },
     encryptedAccessToken: { type: String, required: true },

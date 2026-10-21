@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
-export interface IShop extends Document {
+export interface IShop extends Document<string> {
+  _id: string;
   shopDomain: string;
   shopifyShopId?: string | null;
   name: string;
@@ -17,6 +18,7 @@ export interface IShop extends Document {
 
 const ShopSchema: Schema = new Schema(
   {
+    _id: { type: String, default: () => new mongoose.Types.ObjectId().toString() },
     shopDomain: { type: String, required: true, unique: true, index: true },
     shopifyShopId: { type: String, default: null },
     name: { type: String, required: true },

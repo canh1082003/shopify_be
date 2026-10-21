@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
-export interface ISettings extends Document {
+export interface ISettings extends Document<string> {
+  _id: string;
   shopId: string;
   overdueThresholdHours: number;
   warningLeadTimeHours: number;
@@ -15,6 +16,7 @@ export interface ISettings extends Document {
 
 const SettingsSchema: Schema = new Schema(
   {
+    _id: { type: String, default: () => new mongoose.Types.ObjectId().toString() },
     shopId: { type: String, required: true, unique: true, index: true },
     overdueThresholdHours: { type: Number, default: 24 },
     warningLeadTimeHours: { type: Number, default: 4 },
