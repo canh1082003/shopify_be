@@ -1,12 +1,23 @@
 import crypto from 'crypto';
 import { config } from '../config';
 
+export type TokenType = 'access' | 'refresh';
+
 export interface JwtPayload {
   shopId: string;
   shopDomain: string;
   role?: string;
+  type?: TokenType;
   iat?: number;
   exp?: number;
+}
+
+export interface TokenPair {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: 'Bearer';
+  expiresIn: number;
+  refreshExpiresIn: number;
 }
 
 /**
@@ -37,7 +48,8 @@ function base64UrlDecode(str: string): string {
  */
 export function generateToken(
   payload: Omit<JwtPayload, 'iat' | 'exp'>,
-  expiresInSeconds = config.jwtExpiresInSeconds
+  expiresInSeconds = config.jwtExpiresInSeconds,
+  tokenType: TokenType = 'access'
 ): string {
   const header = {
     alg: 'HS256',
@@ -47,6 +59,7 @@ export function generateToken(
   const now = Math.floor(Date.now() / 1000);
   const fullPayload: JwtPayload = {
     ...payload,
+    type: tokenType,
     iat: now,
     exp: now + expiresInSeconds,
   };
@@ -65,9 +78,29 @@ export function generateToken(
 }
 
 /**
+ * Generate both an Access Token and a long-lived Refresh Token
+ */
+export function generateTokenPair(
+  payload: Omit<JwtPayload, 'iat' | 'exp' | 'type'>,
+  accessExpirySeconds = config.jwtExpiresInSeconds, // default 24h (86400s)
+  refreshExpirySeconds = 7 * 24 * 3600 // 7 days (604800s)
+): TokenPair {
+  const accessToken = generateToken(payload, accessExpirySeconds, 'access');
+  const refreshToken = generateToken(payload, refreshExpirySeconds, 'refresh');
+
+  return {
+    accessToken,
+    refreshToken,
+    tokenType: 'Bearer',
+    expiresIn: accessExpirySeconds,
+    refreshExpiresIn: refreshExpirySeconds,
+  };
+}
+
+/**
  * Verify and decode an HMAC-SHA256 JWT Token
  */
-export function verifyToken(token: string): JwtPayload {
+export function verifyToken(token: string, expectedType: TokenType = 'access'): JwtPayload {
   if (!token || typeof token !== 'string') {
     throw new Error('No token provided');
   }
@@ -106,11 +139,23 @@ export function verifyToken(token: string): JwtPayload {
     throw new Error('Invalid token payload encoding');
   }
 
-  // 3. Verify Expiration
+  // 3. Verify Token Type (access vs refresh)
+  if (payload.type && payload.type !== expectedType) {
+    throw new Error(`Invalid token type: expected '${expectedType}', got '${payload.type}'`);
+  }
+
+  // 4. Verify Expiration
   const now = Math.floor(Date.now() / 1000);
   if (payload.exp && payload.exp < now) {
     throw new Error('Token has expired');
   }
 
   return payload;
+}
+
+/**
+ * Specifically verify a Refresh Token
+ */
+export function verifyRefreshToken(refreshToken: string): JwtPayload {
+  return verifyToken(refreshToken, 'refresh');
 }

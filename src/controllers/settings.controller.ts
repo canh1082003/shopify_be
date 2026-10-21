@@ -3,6 +3,7 @@ import { repository } from '../db/repository';
 import { monitorService } from '../services/monitor.service';
 import { AppError } from '../middleware/error.middleware';
 import { ApiResponse, Settings } from '../types';
+import { HttpStatus, ErrorCode } from '../constants/httpStatus';
 
 export class SettingsController {
   public async getSettings(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -14,12 +15,13 @@ export class SettingsController {
 
       const response: ApiResponse<Settings> = {
         success: true,
+        statusCode: HttpStatus.OK,
         message: 'Settings retrieved successfully',
         data: settings,
         timestamp: new Date().toISOString(),
       };
 
-      res.status(200).json(response);
+      res.status(HttpStatus.OK).json(response);
     } catch (err) {
       next(err);
     }
@@ -43,7 +45,11 @@ export class SettingsController {
       if (overdueThresholdHours !== undefined) {
         const threshold = Number(overdueThresholdHours);
         if (isNaN(threshold) || threshold <= 0 || threshold > 720) {
-          throw new AppError('Overdue threshold must be between 1 and 720 hours (30 days)', 400);
+          throw new AppError(
+            'Overdue threshold must be between 1 and 720 hours (30 days)',
+            HttpStatus.BAD_REQUEST,
+            ErrorCode.VALIDATION_ERROR
+          );
         }
       }
 
@@ -51,14 +57,22 @@ export class SettingsController {
         const lead = Number(warningLeadTimeHours);
         const threshold = overdueThresholdHours !== undefined ? Number(overdueThresholdHours) : 24;
         if (isNaN(lead) || lead < 0 || lead >= threshold) {
-          throw new AppError(`Warning lead time must be between 0 and less than threshold (${threshold}h)`, 400);
+          throw new AppError(
+            `Warning lead time must be between 0 and less than threshold (${threshold}h)`,
+            HttpStatus.BAD_REQUEST,
+            ErrorCode.VALIDATION_ERROR
+          );
         }
       }
 
       if (notificationEmail !== undefined && emailEnabled) {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(notificationEmail)) {
-          throw new AppError('Please enter a valid notification email address', 400);
+          throw new AppError(
+            'Please enter a valid notification email address',
+            HttpStatus.BAD_REQUEST,
+            ErrorCode.VALIDATION_ERROR
+          );
         }
       }
 
@@ -77,12 +91,13 @@ export class SettingsController {
 
       const response: ApiResponse<Settings> = {
         success: true,
+        statusCode: HttpStatus.OK,
         message: 'Settings updated successfully and order watchdog re-evaluated',
         data: updated,
         timestamp: new Date().toISOString(),
       };
 
-      res.status(200).json(response);
+      res.status(HttpStatus.OK).json(response);
     } catch (err) {
       next(err);
     }

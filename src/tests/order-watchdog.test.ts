@@ -195,7 +195,7 @@ describe('Order Watchdog - Repository & Tenant Isolation Tests', () => {
 });
 
 describe('Order Watchdog - Authentication & Token Security Tests', () => {
-  const { generateToken, verifyToken } = require('../utils/jwt');
+  const { generateToken, verifyToken, generateTokenPair, verifyRefreshToken } = require('../utils/jwt');
 
   it('10. Valid token verification: returns authenticated tenant identity', () => {
     const payload = {
@@ -247,5 +247,31 @@ describe('Order Watchdog - Authentication & Token Security Tests', () => {
       /No token provided/i
     );
   });
+
+  it('14. Token pair generation & refresh token validation', () => {
+    const pair = generateTokenPair({ shopId: 'shop-test-456', shopDomain: 'refresh-test.myshopify.com' });
+    assert.ok(pair.accessToken, 'Access token must be generated');
+    assert.ok(pair.refreshToken, 'Refresh token must be generated');
+    assert.strictEqual(pair.tokenType, 'Bearer');
+
+    const accessDecoded = verifyToken(pair.accessToken, 'access');
+    assert.strictEqual(accessDecoded.shopId, 'shop-test-456');
+    assert.strictEqual(accessDecoded.type, 'access');
+
+    const refreshDecoded = verifyRefreshToken(pair.refreshToken);
+    assert.strictEqual(refreshDecoded.shopId, 'shop-test-456');
+    assert.strictEqual(refreshDecoded.type, 'refresh');
+  });
+
+  it('15. Token type safety: access token cannot be used as refresh token', () => {
+    const pair = generateTokenPair({ shopId: 'shop-test-789', shopDomain: 'type-test.myshopify.com' });
+    
+    // Verifying accessToken with expectedType='refresh' must fail
+    assert.throws(
+      () => verifyRefreshToken(pair.accessToken),
+      /Invalid token type: expected 'refresh', got 'access'/i
+    );
+  });
 });
+
 

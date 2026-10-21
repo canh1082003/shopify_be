@@ -3,6 +3,7 @@ import { shopifyService } from '../services/shopify.service';
 import { repository } from '../db/repository';
 import { AppError } from '../middleware/error.middleware';
 import { ApiResponse, ShopifyIntegrationStatus } from '../types';
+import { HttpStatus, ErrorCode } from '../constants/httpStatus';
 
 export class IntegrationController {
   public async getStatus(_req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -11,12 +12,13 @@ export class IntegrationController {
 
       const response: ApiResponse<ShopifyIntegrationStatus> = {
         success: true,
+        statusCode: HttpStatus.OK,
         message: 'Shopify integration status retrieved',
         data: status,
         timestamp: new Date().toISOString(),
       };
 
-      res.status(200).json(response);
+      res.status(HttpStatus.OK).json(response);
     } catch (err) {
       next(err);
     }
@@ -26,19 +28,24 @@ export class IntegrationController {
     try {
       const shopDomain = req.query.shop as string;
       if (!shopDomain) {
-        throw new AppError('Query parameter "shop" is required (e.g. ?shop=yourstore.myshopify.com)', 400);
+        throw new AppError(
+          'Query parameter "shop" is required (e.g. ?shop=yourstore.myshopify.com)',
+          HttpStatus.BAD_REQUEST,
+          ErrorCode.VALIDATION_ERROR
+        );
       }
 
       const { authUrl, state } = shopifyService.generateAuthUrl(shopDomain);
 
       const response: ApiResponse<{ authUrl: string; state: string }> = {
         success: true,
+        statusCode: HttpStatus.OK,
         message: 'Shopify OAuth URL generated',
         data: { authUrl, state },
         timestamp: new Date().toISOString(),
       };
 
-      res.status(200).json(response);
+      res.status(HttpStatus.OK).json(response);
     } catch (err) {
       next(err);
     }
@@ -49,7 +56,11 @@ export class IntegrationController {
       const { shop, code, state } = req.query as { shop?: string; code?: string; state?: string };
 
       if (!shop || !code) {
-        throw new AppError('Missing required OAuth callback parameters "shop" or "code"', 400);
+        throw new AppError(
+          'Missing required OAuth callback parameters "shop" or "code"',
+          HttpStatus.BAD_REQUEST,
+          ErrorCode.VALIDATION_ERROR
+        );
       }
 
       const result = await shopifyService.handleOAuthCallback(shop, code, state || '');
@@ -68,13 +79,18 @@ export class IntegrationController {
       const shopDomain = req.headers['x-shopify-shop-domain'] as string;
 
       if (!topic) {
-        throw new AppError('Missing X-Shopify-Topic header', 400);
+        throw new AppError('Missing X-Shopify-Topic header', HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR);
       }
 
       const rawBody = JSON.stringify(req.body);
       const result = await shopifyService.handleWebhook(topic, rawBody, hmacHeader, shopDomain);
 
-      res.status(200).json({ success: true, message: result.message });
+      res.status(HttpStatus.OK).json({
+        success: true,
+        statusCode: HttpStatus.OK,
+        message: result.message,
+        timestamp: new Date().toISOString(),
+      });
     } catch (err) {
       next(err);
     }
@@ -89,12 +105,13 @@ export class IntegrationController {
 
       const response: ApiResponse<typeof result> = {
         success: true,
+        statusCode: HttpStatus.OK,
         message: result.message,
         data: result,
         timestamp: new Date().toISOString(),
       };
 
-      res.status(200).json(response);
+      res.status(HttpStatus.OK).json(response);
     } catch (err) {
       next(err);
     }

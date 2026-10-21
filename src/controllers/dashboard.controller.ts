@@ -4,6 +4,8 @@ import { monitorService } from '../services/monitor.service';
 import { config } from '../config';
 import { ApiResponse, DashboardSummary, DashboardTrend } from '../types';
 
+import { HttpStatus } from '../constants/httpStatus';
+
 export class DashboardController {
   public async getSummary(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -39,12 +41,13 @@ export class DashboardController {
 
       const response: ApiResponse<DashboardSummary> = {
         success: true,
+        statusCode: HttpStatus.OK,
         message: 'Dashboard summary retrieved successfully',
         data,
         timestamp: new Date().toISOString(),
       };
 
-      res.status(200).json(response);
+      res.status(HttpStatus.OK).json(response);
     } catch (err) {
       next(err);
     }
@@ -61,6 +64,7 @@ export class DashboardController {
 
       const response: ApiResponse<DashboardTrend> = {
         success: true,
+        statusCode: HttpStatus.OK,
         message: `Overdue trends for past ${days} days retrieved`,
         data: {
           period: `${days}d` as '7d' | '30d' | '90d',
@@ -69,7 +73,7 @@ export class DashboardController {
         timestamp: new Date().toISOString(),
       };
 
-      res.status(200).json(response);
+      res.status(HttpStatus.OK).json(response);
     } catch (err) {
       next(err);
     }
