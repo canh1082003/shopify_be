@@ -4,37 +4,27 @@ import path from 'path';
 // Load .env
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-import mongoose from 'mongoose';
 import {
-  ShopModel,
-  SessionModel,
-  OrderModel,
-  AlertModel,
-  SettingsModel,
-  NotificationLogModel,
-} from '../models';
+  connectDatabase,
+  disconnectDatabase,
+  Shop as ShopModel,
+  ShopifySession as SessionModel,
+  Order as OrderModel,
+  Alert as AlertModel,
+  Settings as SettingsModel,
+  NotificationLog as NotificationLogModel,
+} from '../databases';
 import { repository } from '../db/repository';
 
 async function initDatabase() {
-  let mongoUri =
-    process.env.mongodb_url ||
-    process.env.MONGODB_URI ||
-    process.env.MONGODB_URL ||
-    process.env.DATABASE_URL;
-
-  if (!mongoUri) {
-    console.error('❌ No mongodb_url found in .env');
-    process.exit(1);
-  }
-
-  if (mongoUri.endsWith('/')) {
-    mongoUri = `${mongoUri}shopify_order_watchdog?retryWrites=true&w=majority`;
-  }
-
-  console.log(`📡 Connecting to MongoDB Atlas: ${mongoUri.replace(/:[^:]*@/, ':****@')}...`);
+  console.log('📡 Connecting to MongoDB Atlas via connectDatabase()...');
 
   try {
-    await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 15000 });
+    const connected = await connectDatabase();
+    if (!connected) {
+      console.error('❌ No valid MongoDB URI found or connection failed');
+      process.exit(1);
+    }
     console.log('✅ Connected to MongoDB Atlas successfully!');
 
     // Initialize collections and create indexes
@@ -71,7 +61,7 @@ async function initDatabase() {
     console.log(`   - notification_logs: ${counts.notification_logs} documents`);
     console.log('======================================================\n');
 
-    await mongoose.disconnect();
+    await disconnectDatabase();
     console.log('🔒 Closed MongoDB connection.');
     process.exit(0);
   } catch (error) {

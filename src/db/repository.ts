@@ -10,15 +10,15 @@ import {
   OrderFilterQuery,
   PaginatedResult,
 } from '../types';
-import { isMongoConnected } from './mongo';
 import {
-  ShopModel,
-  SessionModel,
-  OrderModel,
-  AlertModel,
-  SettingsModel,
-  NotificationLogModel,
-} from '../models';
+  isDatabaseConnected as isMongoConnected,
+  Shop as ShopModel,
+  ShopifySession as SessionModel,
+  Order as OrderModel,
+  Alert as AlertModel,
+  Settings as SettingsModel,
+  NotificationLog as NotificationLogModel,
+} from '../databases';
 
 interface DatabaseSchema {
   shops: Record<string, Shop>;
@@ -555,7 +555,7 @@ export class Repository {
     this.db.sessions[session.shopId] = { ...session, updatedAt: new Date().toISOString() };
     this.persist();
     if (isMongoConnected()) {
-      SessionModel.findByIdAndUpdate(session.shopId, { ...session, _id: session.id }, { upsert: true }).catch((e) =>
+      SessionModel.findByIdAndUpdate(session.id, { ...session, _id: session.id }, { upsert: true }).catch((e) =>
         console.error('[Repository] MongoDB saveSession error:', e)
       );
     }
@@ -752,12 +752,15 @@ export class Repository {
       this.db.alerts[shopId].unshift(alert);
     }
     this.persist();
-    if (isMongoConnected()) {
-      AlertModel.findByIdAndUpdate(alert.id, { ...alert, _id: alert.id, shopId }, { upsert: true }).catch((e) =>
-        console.error('[Repository] MongoDB upsertAlert error:', e)
-      );
-    }
+    this.syncAlertToMongo(shopId, alert);
     return alert;
+  }
+
+  private syncAlertToMongo(shopId: string, alert: Alert): void {
+    if (!isMongoConnected()) return;
+    AlertModel.findByIdAndUpdate(alert.id, { ...alert, _id: alert.id, shopId }, { upsert: true }).catch((e) =>
+      console.error('[Repository] MongoDB alert sync error:', e)
+    );
   }
 
   public async acknowledgeAlert(shopId: string, alertId: string): Promise<Alert | null> {
@@ -767,6 +770,7 @@ export class Repository {
     alert.status = 'acknowledged';
     alert.acknowledgedAt = new Date().toISOString();
     this.persist();
+    this.syncAlertToMongo(shopId, alert);
     return alert;
   }
 
@@ -780,6 +784,7 @@ export class Repository {
         alert.severity = 'resolved';
         alert.resolvedAt = new Date().toISOString();
         if (reason) alert.reason = reason;
+        this.syncAlertToMongo(shopId, alert);
         updated = true;
       }
     }
@@ -900,30 +905,92 @@ export class Repository {
         console.log('[Repository] Demo data seeded successfully to MongoDB Atlas!');
       } else {
         console.log(`[Repository] MongoDB Atlas already has ${count} shop(s). Syncing from Atlas...`);
+        // 1. Sync shops
         const mongoShops = await ShopModel.find().lean();
         for (const s of mongoShops) {
-          this.db.shops[s._id] = { ...(s as any), id: s._id };
+          const shopId = String(s._id);
+          const local = this.db.shops[shopId];
+          if (!local || new Date(s.updatedAt || s.createdAt).getTime() >= new Date(local.updatedAt || local.createdAt).getTime()) {
+            this.db.shops[shopId] = { ...(s as any), id: shopId };
+          }
         }
+
+        // 2. Sync sessions
+        const mongoSessions = await SessionModel.find().lean();
+        for (const sess of mongoSessions) {
+          this.db.sessions[sess.shopId] = { ...(sess as any), id: String(sess._id) };
+        }
+
+        // 3. Sync orders (and push missing local orders to Mongo)
         const mongoOrders = await OrderModel.find().lean();
         for (const o of mongoOrders) {
+          const orderId = String(o._id);
           if (!this.db.orders[o.shopId]) this.db.orders[o.shopId] = [];
-          const idx = this.db.orders[o.shopId].findIndex((x) => x.id === o._id);
-          const orderObj = { ...(o as any), id: o._id };
-          if (idx >= 0) this.db.orders[o.shopId][idx] = orderObj;
-          else this.db.orders[o.shopId].push(orderObj);
+          const idx = this.db.orders[o.shopId].findIndex((x) => x.id === orderId);
+          const orderObj = { ...(o as any), id: orderId };
+          if (idx >= 0) {
+            const local = this.db.orders[o.shopId][idx];
+            if (new Date(o.updatedAt || o.createdAt).getTime() >= new Date(local.updatedAt || local.createdAt).getTime()) {
+              this.db.orders[o.shopId][idx] = orderObj;
+            }
+          } else {
+            this.db.orders[o.shopId].push(orderObj);
+          }
         }
+        for (const shopId of Object.keys(this.db.orders)) {
+          for (const localOrder of this.db.orders[shopId]) {
+            if (!mongoOrders.some((mo) => String(mo._id) === String(localOrder.id))) {
+              await OrderModel.findByIdAndUpdate(localOrder.id, { ...localOrder, _id: localOrder.id, shopId }, { upsert: true });
+            }
+          }
+        }
+
+        // 4. Sync alerts
         const mongoAlerts = await AlertModel.find().lean();
         for (const a of mongoAlerts) {
+          const alertId = String(a._id);
           if (!this.db.alerts[a.shopId]) this.db.alerts[a.shopId] = [];
-          const idx = this.db.alerts[a.shopId].findIndex((x) => x.id === a._id);
-          const alertObj = { ...(a as any), id: a._id };
-          if (idx >= 0) this.db.alerts[a.shopId][idx] = alertObj;
-          else this.db.alerts[a.shopId].push(alertObj);
+          const idx = this.db.alerts[a.shopId].findIndex((x) => x.id === alertId);
+          const alertObj = { ...(a as any), id: alertId };
+          if (idx >= 0) {
+            const local = this.db.alerts[a.shopId][idx];
+            const mongoTime = new Date(a.resolvedAt || a.acknowledgedAt || a.createdAt).getTime();
+            const localTime = new Date(local.resolvedAt || local.acknowledgedAt || local.createdAt).getTime();
+            if (mongoTime >= localTime) {
+              this.db.alerts[a.shopId][idx] = alertObj;
+            }
+          } else {
+            this.db.alerts[a.shopId].push(alertObj);
+          }
         }
+        for (const shopId of Object.keys(this.db.alerts)) {
+          for (const localAlert of this.db.alerts[shopId]) {
+            if (!mongoAlerts.some((ma) => String(ma._id) === String(localAlert.id))) {
+              this.syncAlertToMongo(shopId, localAlert);
+            }
+          }
+        }
+
+        // 5. Sync settings
         const mongoSettings = await SettingsModel.find().lean();
         for (const st of mongoSettings) {
-          this.db.settings[st.shopId] = { ...(st as any), id: st._id };
+          const local = this.db.settings[st.shopId];
+          if (!local || new Date(st.updatedAt).getTime() >= new Date(local.updatedAt).getTime()) {
+            this.db.settings[st.shopId] = { ...(st as any), id: String(st._id) };
+          }
         }
+
+        // 6. Sync notification logs
+        const mongoLogs = await NotificationLogModel.find().lean();
+        for (const log of mongoLogs) {
+          const logId = String(log._id);
+          if (!this.db.notificationLogs[log.shopId]) this.db.notificationLogs[log.shopId] = [];
+          if (!this.db.notificationLogs[log.shopId].some((l) => l.id === logId)) {
+            this.db.notificationLogs[log.shopId].push({ ...(log as any), id: logId });
+          }
+        }
+
+        this.persist();
       }
     } catch (err) {
       console.error('[Repository] Error syncing with MongoDB:', err);

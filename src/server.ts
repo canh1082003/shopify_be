@@ -3,7 +3,7 @@ import { config } from './config';
 import { monitorService } from './services/monitor.service';
 import { repository } from './db/repository';
 
-import { connectMongo } from './db/mongo';
+import { connectDatabase } from './databases';
 
 const PORT = config.port;
 
@@ -23,14 +23,14 @@ const server = app.listen(PORT, async () => {
   console.log(`🌐 Allowed Client: ${config.clientOrigin}`);
   console.log(`======================================================\n`);
 
-  // Connect to MongoDB Atlas if MONGODB_URI is provided
+  // Connect to MongoDB Atlas
   try {
-    const mongoConnected = await connectMongo();
-    if (mongoConnected) {
+    const isConnected = await connectDatabase();
+    if (isConnected) {
       await repository.syncWithMongo();
     }
   } catch (err) {
-    console.error('[MongoDB] Initialization error:', err);
+    console.error('[Database] Initialization error:', err);
   }
 
   // Initial evaluation pass
