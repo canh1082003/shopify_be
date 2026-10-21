@@ -171,6 +171,8 @@ export interface PaginatedResult<T> {
 export interface ApiResponse<T = unknown> {
   success: boolean;
   message: string;
+  statusCode?: number;
+  errorCode?: string;
   data?: T;
   error?: string;
   timestamp: string;

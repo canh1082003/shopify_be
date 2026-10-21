@@ -3,6 +3,7 @@ import { repository } from '../db/repository';
 import { monitorService } from '../services/monitor.service';
 import { AppError } from '../middleware/error.middleware';
 import { ApiResponse, Alert, PaginatedResult } from '../types';
+import { HttpStatus, ErrorCode } from '../constants/httpStatus';
 
 export class AlertController {
   public async getAlerts(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -26,12 +27,13 @@ export class AlertController {
 
       const response: ApiResponse<PaginatedResult<Alert>> = {
         success: true,
+        statusCode: HttpStatus.OK,
         message: 'Alerts retrieved successfully',
         data: result,
         timestamp: new Date().toISOString(),
       };
 
-      res.status(200).json(response);
+      res.status(HttpStatus.OK).json(response);
     } catch (err) {
       next(err);
     }
@@ -56,12 +58,13 @@ export class AlertController {
 
       const response: ApiResponse<typeof summary> = {
         success: true,
+        statusCode: HttpStatus.OK,
         message: 'Alerts summary retrieved',
         data: summary,
         timestamp: new Date().toISOString(),
       };
 
-      res.status(200).json(response);
+      res.status(HttpStatus.OK).json(response);
     } catch (err) {
       next(err);
     }
@@ -75,17 +78,18 @@ export class AlertController {
 
       const updated = await repository.acknowledgeAlert(shopId, id);
       if (!updated) {
-        throw new AppError(`Alert with ID "${id}" not found`, 404);
+        throw new AppError(`Alert with ID "${id}" not found`, HttpStatus.NOT_FOUND, ErrorCode.RESOURCE_NOT_FOUND);
       }
 
       const response: ApiResponse<Alert> = {
         success: true,
+        statusCode: HttpStatus.OK,
         message: `Alert ${updated.orderNumber} has been acknowledged. The underlying order remains unfulfilled until fulfilled in Shopify.`,
         data: updated,
         timestamp: new Date().toISOString(),
       };
 
-      res.status(200).json(response);
+      res.status(HttpStatus.OK).json(response);
     } catch (err) {
       next(err);
     }

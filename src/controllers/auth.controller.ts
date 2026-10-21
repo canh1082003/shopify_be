@@ -1,12 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
-import { generateToken } from '../utils/jwt';
+import { generateTokenPair, verifyRefreshToken, verifyToken } from '../utils/jwt';
 import { repository } from '../db/repository';
 import { config } from '../config';
 import { ApiResponse } from '../types';
+import { HttpStatus, ErrorCode } from '../constants/httpStatus';
 
 export class AuthController {
   /**
-   * Request/Generate a secure authentication token for a merchant or store session
+   * Request/Generate a secure authentication token pair (Access + Refresh token)
    */
   public async issueToken(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -20,19 +21,22 @@ export class AuthController {
         shop = await repository.getPrimaryShop();
       }
 
-      const token = generateToken(
+      const tokenPair = generateTokenPair(
         {
           shopId: shop.id,
           shopDomain: shop.shopDomain,
           role: 'merchant_admin',
         },
-        config.jwtExpiresInSeconds
+        config.jwtExpiresInSeconds,
+        7 * 24 * 3600 // 7 days refresh
       );
 
       const response: ApiResponse<{
         token: string;
+        refreshToken: string;
         tokenType: 'Bearer';
         expiresIn: number;
+        refreshExpiresIn: number;
         shop: {
           id: string;
           domain: string;
@@ -41,11 +45,14 @@ export class AuthController {
         };
       }> = {
         success: true,
+        statusCode: HttpStatus.OK,
         message: 'Authentication token issued successfully',
         data: {
-          token,
+          token: tokenPair.accessToken,
+          refreshToken: tokenPair.refreshToken,
           tokenType: 'Bearer',
-          expiresIn: config.jwtExpiresInSeconds,
+          expiresIn: tokenPair.expiresIn,
+          refreshExpiresIn: tokenPair.refreshExpiresIn,
           shop: {
             id: shop.id,
             domain: shop.shopDomain,
@@ -56,20 +63,178 @@ export class AuthController {
         timestamp: new Date().toISOString(),
       };
 
-      res.status(200).json(response);
+      res.status(HttpStatus.OK).json(response);
     } catch (err) {
       next(err);
     }
   }
 
   /**
-   * Verify token and return current authenticated shop context
+   * Refresh an expired access token using a valid Refresh Token
+   */
+  public async refreshToken(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { refreshToken } = req.body || {};
+
+      if (!refreshToken || typeof refreshToken !== 'string') {
+        res.status(HttpStatus.BAD_REQUEST).json({
+          success: false,
+          statusCode: HttpStatus.BAD_REQUEST,
+          errorCode: ErrorCode.VALIDATION_ERROR,
+          message: 'Missing or invalid refreshToken in request body',
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      let payload;
+      try {
+        payload = verifyRefreshToken(refreshToken);
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : 'Invalid refresh token';
+        const isExpired = errorMsg.toLowerCase().includes('expired');
+        res.status(HttpStatus.UNAUTHORIZED).json({
+          success: false,
+          statusCode: HttpStatus.UNAUTHORIZED,
+          errorCode: isExpired ? ErrorCode.AUTH_REFRESH_EXPIRED : ErrorCode.AUTH_REFRESH_INVALID,
+          message: `Refresh token verification failed: ${errorMsg}`,
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      const shop = await repository.getShop(payload.shopId);
+      if (!shop) {
+        res.status(HttpStatus.UNAUTHORIZED).json({
+          success: false,
+          statusCode: HttpStatus.UNAUTHORIZED,
+          errorCode: ErrorCode.TENANT_MISMATCH,
+          message: 'Shop associated with refresh token no longer exists',
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      // Re-issue a fresh token pair
+      const newTokenPair = generateTokenPair(
+        {
+          shopId: shop.id,
+          shopDomain: shop.shopDomain,
+          role: payload.role || 'merchant_admin',
+        },
+        config.jwtExpiresInSeconds,
+        7 * 24 * 3600
+      );
+
+      const response: ApiResponse<{
+        token: string;
+        refreshToken: string;
+        tokenType: 'Bearer';
+        expiresIn: number;
+      }> = {
+        success: true,
+        statusCode: HttpStatus.OK,
+        message: 'Access token successfully refreshed',
+        data: {
+          token: newTokenPair.accessToken,
+          refreshToken: newTokenPair.refreshToken,
+          tokenType: 'Bearer',
+          expiresIn: newTokenPair.expiresIn,
+        },
+        timestamp: new Date().toISOString(),
+      };
+
+      res.status(HttpStatus.OK).json(response);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Explicitly verify if a Bearer token is currently valid
+   */
+  public async verifyTokenStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        res.status(HttpStatus.UNAUTHORIZED).json({
+          success: false,
+          statusCode: HttpStatus.UNAUTHORIZED,
+          errorCode: ErrorCode.AUTH_TOKEN_MISSING,
+          message: 'Missing Authorization header',
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      const parts = authHeader.split(' ');
+      if (parts.length !== 2 || parts[0].toLowerCase() !== 'bearer') {
+        res.status(HttpStatus.UNAUTHORIZED).json({
+          success: false,
+          statusCode: HttpStatus.UNAUTHORIZED,
+          errorCode: ErrorCode.AUTH_INVALID_HEADER,
+          message: 'Malformed Authorization header. Format: Bearer <token>',
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      const token = parts[1];
+      try {
+        const decoded = verifyToken(token, 'access');
+        const shop = await repository.getShop(decoded.shopId);
+
+        const now = Math.floor(Date.now() / 1000);
+        const remainingSeconds = decoded.exp ? Math.max(0, decoded.exp - now) : config.jwtExpiresInSeconds;
+
+        res.status(HttpStatus.OK).json({
+          success: true,
+          statusCode: HttpStatus.OK,
+          message: 'Token is valid and active',
+          data: {
+            valid: true,
+            shop: {
+              id: decoded.shopId,
+              domain: decoded.shopDomain,
+              name: shop?.name || decoded.shopDomain,
+            },
+            expiresAt: decoded.exp ? new Date(decoded.exp * 1000).toISOString() : null,
+            remainingSeconds,
+          },
+          timestamp: new Date().toISOString(),
+        });
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : 'Invalid token';
+        const isExpired = errorMsg.toLowerCase().includes('expired');
+
+        res.status(HttpStatus.UNAUTHORIZED).json({
+          success: false,
+          statusCode: HttpStatus.UNAUTHORIZED,
+          errorCode: isExpired ? ErrorCode.AUTH_TOKEN_EXPIRED : ErrorCode.AUTH_INVALID_TOKEN,
+          message: `Token validation failed: ${errorMsg}`,
+          data: { valid: false, error: errorMsg },
+          timestamp: new Date().toISOString(),
+        });
+      }
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Return current authenticated shop context
    */
   public async getMe(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const shopContext = req.shop;
       if (!shopContext) {
-        res.status(401).json({ success: false, message: 'Unauthorized', timestamp: new Date().toISOString() });
+        res.status(HttpStatus.UNAUTHORIZED).json({
+          success: false,
+          statusCode: HttpStatus.UNAUTHORIZED,
+          errorCode: ErrorCode.AUTH_TOKEN_MISSING,
+          message: 'Unauthorized: missing authentication context',
+          timestamp: new Date().toISOString(),
+        });
         return;
       }
 
@@ -77,7 +242,8 @@ export class AuthController {
 
       const response: ApiResponse = {
         success: true,
-        message: 'Token verified successfully',
+        statusCode: HttpStatus.OK,
+        message: 'Authenticated shop profile retrieved successfully',
         data: {
           authenticatedAs: shopContext,
           shop,
@@ -85,7 +251,7 @@ export class AuthController {
         timestamp: new Date().toISOString(),
       };
 
-      res.status(200).json(response);
+      res.status(HttpStatus.OK).json(response);
     } catch (err) {
       next(err);
     }

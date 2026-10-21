@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { ApiResponse, HealthCheckData } from '../types';
 import { config } from '../config';
+import { HttpStatus } from '../constants/httpStatus';
 
 export class HealthController {
   public check(_req: Request, res: Response): void {
@@ -22,12 +23,13 @@ export class HealthController {
 
     const response: ApiResponse<HealthCheckData> = {
       success: true,
+      statusCode: HttpStatus.OK,
       message: 'Server is running smoothly',
       data,
       timestamp: new Date().toISOString(),
     };
 
-    res.status(200).json(response);
+    res.status(HttpStatus.OK).json(response);
   }
 }
 

@@ -3,6 +3,7 @@ import { repository } from '../db/repository';
 import { monitorService } from '../services/monitor.service';
 import { AppError } from '../middleware/error.middleware';
 import { ApiResponse, Order, PaginatedResult } from '../types';
+import { HttpStatus, ErrorCode } from '../constants/httpStatus';
 
 export class OrderController {
   public async getOrders(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -33,12 +34,13 @@ export class OrderController {
 
       const response: ApiResponse<PaginatedResult<Order>> = {
         success: true,
+        statusCode: HttpStatus.OK,
         message: 'Orders retrieved successfully',
         data: result,
         timestamp: new Date().toISOString(),
       };
 
-      res.status(200).json(response);
+      res.status(HttpStatus.OK).json(response);
     } catch (err) {
       next(err);
     }
@@ -52,17 +54,18 @@ export class OrderController {
 
       const order = await repository.getOrderById(shopId, id);
       if (!order) {
-        throw new AppError(`Order with ID "${id}" not found`, 404);
+        throw new AppError(`Order with ID "${id}" not found`, HttpStatus.NOT_FOUND, ErrorCode.RESOURCE_NOT_FOUND);
       }
 
       const response: ApiResponse<Order> = {
         success: true,
+        statusCode: HttpStatus.OK,
         message: 'Order details retrieved',
         data: order,
         timestamp: new Date().toISOString(),
       };
 
-      res.status(200).json(response);
+      res.status(HttpStatus.OK).json(response);
     } catch (err) {
       next(err);
     }
