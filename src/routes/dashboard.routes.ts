@@ -3,7 +3,8 @@ import { dashboardController } from '../controllers/dashboard.controller';
 
 const router = Router();
 
-router.get('/summary', (req, res, next) => dashboardController.getSummary(req, res, next));
-router.get('/trends', (req, res, next) => dashboardController.getTrends(req, res, next));
+router.get('/summary', dashboardController.getSummary.bind(dashboardController));
+router.get('/sales-trend', dashboardController.getSalesTrend.bind(dashboardController));
+router.get('/trends', dashboardController.getTrends.bind(dashboardController));
 
 export default router;

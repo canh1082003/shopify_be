@@ -3,8 +3,9 @@ import { alertController } from '../controllers/alert.controller';
 
 const router = Router();
 
-router.get('/summary', (req, res, next) => alertController.getSummary(req, res, next));
-router.get('/', (req, res, next) => alertController.getAlerts(req, res, next));
-router.patch('/:id/acknowledge', (req, res, next) => alertController.acknowledge(req, res, next));
+router.get('/', alertController.getAlerts.bind(alertController));
+router.get('/summary', alertController.getSummary.bind(alertController));
+router.patch('/:id/acknowledge', alertController.acknowledge.bind(alertController));
+router.patch('/:id/dismiss', alertController.dismiss.bind(alertController));
 
 export default router;

@@ -11,13 +11,13 @@ export const config = {
   isProduction: process.env.NODE_ENV === 'production',
 
   // Database
-  databaseUrl: process.env.DATABASE_URL || 'file:./order_watchdog.db',
+  databaseUrl: process.env.DATABASE_URL || 'file:./stockpilot.db',
 
   // Shopify App Store Credentials
   shopify: {
     apiKey: process.env.SHOPIFY_API_KEY || '',
     apiSecret: process.env.SHOPIFY_API_SECRET || '',
-    scopes: (process.env.SHOPIFY_SCOPES || 'read_orders,read_fulfillments,write_orders').split(','),
+    scopes: (process.env.SHOPIFY_SCOPES || 'read_products,read_inventory,read_orders,read_locations').split(','),
     appUrl: process.env.APP_URL || 'http://localhost:5000',
     apiVersion: '2025-01',
     isConfigured: Boolean(process.env.SHOPIFY_API_KEY && process.env.SHOPIFY_API_SECRET),
@@ -28,7 +28,7 @@ export const config = {
   encryptionKey:
     process.env.ENCRYPTION_KEY || '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
   jwtSecret:
-    process.env.JWT_SECRET || 'order_watchdog_auth_secret_key_2026_production_grade_hmac',
+    process.env.JWT_SECRET || 'stockpilot_auth_secret_key_2026_production_grade_hmac',
   jwtExpiresInSeconds: parseInt(process.env.JWT_EXPIRES_IN_SECONDS || '86400', 10), // 24 hours
 
   // Email Notification Credentials
@@ -37,7 +37,7 @@ export const config = {
     port: parseInt(process.env.SMTP_PORT || '587', 10),
     user: process.env.SMTP_USER || '',
     pass: process.env.SMTP_PASS || '',
-    from: process.env.NOTIFICATION_FROM_EMAIL || 'alerts@orderwatchdog.app',
+    from: process.env.NOTIFICATION_FROM_EMAIL || 'alerts@stockpilot.io',
     isConfigured: Boolean(process.env.SMTP_HOST && process.env.SMTP_USER),
   },
 

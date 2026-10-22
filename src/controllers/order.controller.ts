@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
 import { repository } from '../db/repository';
-import { monitorService } from '../services/monitor.service';
 import { AppError } from '../middleware/error.middleware';
 import { ApiResponse, Order, PaginatedResult } from '../types';
 import { HttpStatus, ErrorCode } from '../constants/httpStatus';
@@ -9,16 +8,13 @@ export class OrderController {
   public async getOrders(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const primaryShop = await repository.getPrimaryShop();
-      const shopId = req.shop?.shopId || primaryShop.id;
+      const shopId = (req as any).shop?.shopId || primaryShop.id;
 
-      // Refresh computed states
-      await monitorService.evaluateShopOrders(shopId);
-
-      const status = req.query.status as 'all' | 'overdue' | 'pending' | 'fulfilled' | undefined;
+      const status = req.query.status as any;
       const search = req.query.search as string | undefined;
       const dateFrom = req.query.dateFrom as string | undefined;
       const dateTo = req.query.dateTo as string | undefined;
-      const sortBy = req.query.sortBy as 'newest' | 'oldest' | 'overdue_desc' | undefined;
+      const sortBy = req.query.sortBy as any;
       const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
       const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
 
@@ -35,7 +31,7 @@ export class OrderController {
       const response: ApiResponse<PaginatedResult<Order>> = {
         success: true,
         statusCode: HttpStatus.OK,
-        message: 'Orders retrieved successfully',
+        message: 'Shopify read-only orders retrieved successfully',
         data: result,
         timestamp: new Date().toISOString(),
       };
@@ -49,7 +45,7 @@ export class OrderController {
   public async getOrderById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const primaryShop = await repository.getPrimaryShop();
-      const shopId = req.shop?.shopId || primaryShop.id;
+      const shopId = (req as any).shop?.shopId || primaryShop.id;
       const { id } = req.params;
 
       const order = await repository.getOrderById(shopId, id);
@@ -60,7 +56,7 @@ export class OrderController {
       const response: ApiResponse<Order> = {
         success: true,
         statusCode: HttpStatus.OK,
-        message: 'Order details retrieved',
+        message: 'Order context retrieved successfully',
         data: order,
         timestamp: new Date().toISOString(),
       };

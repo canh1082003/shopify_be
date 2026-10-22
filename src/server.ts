@@ -2,7 +2,6 @@ import app from './app';
 import { config } from './config';
 import { monitorService } from './services/monitor.service';
 import { repository } from './db/repository';
-
 import { connectDatabase } from './databases';
 
 const PORT = config.port;
@@ -12,18 +11,20 @@ let monitoringTimer: NodeJS.Timeout | null = null;
 // Start server
 const server = app.listen(PORT, async () => {
   console.log(`\n======================================================`);
-  console.log(`🛡️  ORDER WATCHDOG — SHOPIFY SAAS BACKEND`);
-  console.log(`   "Never Miss an Overdue Order Again"`);
+  console.log(`🚀 STOCKPILOT — SHOPIFY INVENTORY & ORDER MANAGEMENT SAAS`);
+  console.log(`   "Smarter Inventory. Better Decisions."`);
   console.log(`📡 URL: http://localhost:${PORT}`);
   console.log(`📊 Dashboard API: http://localhost:${PORT}/api/dashboard/summary`);
-  console.log(`📦 Orders API: http://localhost:${PORT}/api/orders`);
-  console.log(`🚨 Alerts API: http://localhost:${PORT}/api/alerts`);
+  console.log(`📦 Inventory API: http://localhost:${PORT}/api/inventory`);
+  console.log(`🛒 Orders API: http://localhost:${PORT}/api/orders`);
+  console.log(`🚨 Stock Alerts API: http://localhost:${PORT}/api/alerts`);
+  console.log(`📈 Analytics API: http://localhost:${PORT}/api/analytics/sales-velocity`);
   console.log(`⚙️  Settings API: http://localhost:${PORT}/api/settings`);
   console.log(`🌐 Shopify Integration: http://localhost:${PORT}/api/integrations/shopify/status`);
   console.log(`🌐 Allowed Client: ${config.clientOrigin}`);
   console.log(`======================================================\n`);
 
-  // Connect to MongoDB Atlas
+  // Connect to MongoDB Atlas (if configured)
   try {
     const isConnected = await connectDatabase();
     if (isConnected) {
@@ -33,24 +34,26 @@ const server = app.listen(PORT, async () => {
     console.error('[Database] Initialization error:', err);
   }
 
-  // Initial evaluation pass
+  // Initial inventory & order evaluation pass
   try {
     const primaryShop = await repository.getPrimaryShop();
+    await repository.recalculateStockLevels(primaryShop.id);
     const result = await monitorService.evaluateShopOrders(primaryShop.id);
     console.log(
-      `[Monitor Engine] Initial pass complete: evaluated ${result.evaluatedCount} orders, detected ${result.newOverdueCount} overdue.`
+      `[StockPilot Engine] Initial pass complete: evaluated ${result.evaluatedCount} orders, recalculated stock status & alerts.`
     );
   } catch (err) {
-    console.error('[Monitor Engine] Initial pass failed:', err);
+    console.error('[StockPilot Engine] Initial pass failed:', err);
   }
 
-  // Start background monitoring scheduler
+  // Start background periodic reconciliation scheduler
   monitoringTimer = setInterval(async () => {
     try {
       const primaryShop = await repository.getPrimaryShop();
+      await repository.recalculateStockLevels(primaryShop.id);
       await monitorService.evaluateShopOrders(primaryShop.id);
     } catch (err) {
-      console.error('[Monitor Engine] Periodic pass error:', err);
+      console.error('[StockPilot Engine] Periodic pass error:', err);
     }
   }, config.monitoring.intervalMs);
 });
