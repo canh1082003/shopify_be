@@ -27,15 +27,6 @@ export interface ShopifySession {
   updatedAt: string;
 }
 
-export interface LineItem {
-  id: string;
-  title: string;
-  quantity: number;
-  fulfillableQuantity: number;
-  price: number;
-  sku?: string;
-}
-
 export type FinancialStatus =
   | 'paid'
   | 'authorized'
@@ -48,7 +39,18 @@ export type FulfillmentStatus =
   | 'unfulfilled'
   | 'partial'
   | 'fulfilled'
-  | 'restocked';
+  | 'restocked'
+  | 'cancelled';
+
+export interface LineItem {
+  id: string;
+  variantId?: string;
+  title: string;
+  quantity: number;
+  fulfillableQuantity: number;
+  price: number;
+  sku?: string;
+}
 
 export interface Order {
   id: string;
@@ -68,7 +70,7 @@ export interface Order {
   totalItems: number;
   fulfillableQuantity: number;
   lineItems: LineItem[];
-  deadline: string | null;
+  deadline?: string | null;
   isOverdue: boolean;
   overdueMinutes: number;
   shopifyUrl?: string | null;
@@ -94,16 +96,135 @@ export interface Alert {
   resolvedAt?: string | null;
 }
 
+export type StockStatus =
+  | 'healthy'
+  | 'low_stock'
+  | 'out_of_stock'
+  | 'restock_soon'
+  | 'untracked';
+
+export type AlertType =
+  | 'low_stock'
+  | 'out_of_stock'
+  | 'restock_soon'
+  | 'untracked';
+
+export interface ProductVariant {
+  id: string;
+  shopId: string;
+  productId: string;
+  productTitle: string;
+  productImage?: string | null;
+  shopifyVariantId: string;
+  inventoryItemId: string;
+  sku: string;
+  title: string;
+  price: number;
+  costPrice: number;
+  tracked: boolean;
+  barcode?: string | null;
+  locationId: string;
+  locationName: string;
+  availableQuantity: number;
+  committedQuantity: number;
+  averageDailySales: number;
+  daysRemaining: number | null;
+  status: StockStatus;
+  lowStockThreshold: number;
+  leadTimeDays: number;
+  safetyStockDays: number;
+  recommendedRestockQuantity: number;
+  updatedAt: string;
+}
+
+export interface InventoryItemDetail extends ProductVariant {
+  productStatus: 'active' | 'draft' | 'archived';
+  productVendor: string;
+  productType: string;
+  locationLevels: Array<{
+    locationId: string;
+    locationName: string;
+    availableQuantity: number;
+    committedQuantity: number;
+    incomingQuantity: number;
+    lastSyncedAt: string;
+  }>;
+  salesHistory30d: number;
+  targetStockLevel: number;
+  estimatedReorderCost: number;
+}
+
+export interface Product {
+  id: string;
+  shopId: string;
+  shopifyProductId: string;
+  title: string;
+  description?: string;
+  vendor: string;
+  productType: string;
+  status: 'active' | 'draft' | 'archived';
+  imageUrl?: string | null;
+  tags?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InventoryLevel {
+  id: string;
+  shopId: string;
+  variantId: string;
+  inventoryItemId: string;
+  locationId: string;
+  locationName: string;
+  availableQuantity: number;
+  committedQuantity: number;
+  incomingQuantity: number;
+  lastSyncedAt: string;
+}
+
+export interface StockAlert {
+  id: string;
+  shopId: string;
+  variantId: string;
+  productTitle: string;
+  variantTitle: string;
+  sku: string;
+  locationName: string;
+  alertType: AlertType;
+  status: AlertStatus;
+  currentQuantity: number;
+  threshold: number;
+  estimatedDaysRemaining: number | null;
+  reason: string;
+  createdAt: string;
+  acknowledgedAt?: string | null;
+  resolvedAt?: string | null;
+}
+
+export interface ProductOverride {
+  lowStockThreshold?: number;
+  leadTimeDays?: number;
+  safetyStockDays?: number;
+}
+
 export interface Settings {
   id: string;
   shopId: string;
-  overdueThresholdHours: number; // 12, 24, 48, or custom hours
-  warningLeadTimeHours: number; // e.g. 4h before deadline
+  defaultLowStockThreshold: number;
+  defaultLeadTimeDays: number;
+  defaultSafetyStockDays: number;
+  salesVelocityDays: number;
+  locationScope: 'all' | string;
   emailEnabled: boolean;
   notificationEmail: string;
-  digestFrequency: 'immediate' | 'daily' | 'hourly';
-  autoAcknowledge: boolean;
-  excludeTags: string[];
+  dailyDigest: boolean;
+  productOverrides: Record<string, ProductOverride>;
+  // Legacy fields for backward compatibility
+  overdueThresholdHours: number;
+  warningLeadTimeHours: number;
+  autoAcknowledge?: boolean;
+  excludeTags?: string[];
+  digestFrequency?: 'immediate' | 'daily' | 'hourly';
   updatedAt: string;
 }
 
@@ -118,31 +239,75 @@ export interface NotificationLog {
   sentAt: string;
 }
 
+export interface DashboardKPIs {
+  totalProducts: number;
+  totalInventoryUnits: number;
+  lowStockProducts: number;
+  outOfStockProducts: number;
+  ordersThisMonth: number;
+  estimatedInventoryValue: number;
+  currency: string;
+}
+
+export interface InventoryHealthBreakdown {
+  healthyCount: number;
+  lowStockCount: number;
+  outOfStockCount: number;
+  untrackedCount: number;
+  totalTracked: number;
+}
+
+export interface TopSellingProduct {
+  variantId: string;
+  productTitle: string;
+  variantTitle: string;
+  sku: string;
+  unitsSold: number;
+  revenue: number;
+  currentStock: number;
+  daysRemaining: number | null;
+}
+
+export interface RestockRecommendation {
+  variantId: string;
+  productId: string;
+  productTitle: string;
+  variantTitle: string;
+  sku: string;
+  availableQuantity: number;
+  averageDailySales: number;
+  daysRemaining: number | null;
+  leadTimeDays: number;
+  safetyStockDays: number;
+  targetStock: number;
+  recommendedQuantity: number;
+  unitCost: number;
+  estimatedCost: number;
+  urgency: 'critical' | 'high' | 'medium';
+}
+
 export interface DashboardSummary {
-  totalOrders: number;
-  overdueOrders: number;
-  pendingFulfillment: number;
-  onTimeRate: number;
-  comparison: {
-    totalOrdersDiff?: number;
-    overdueDiff?: number;
-  } | null;
+  kpis: DashboardKPIs;
+  inventoryHealth: InventoryHealthBreakdown;
+  topSellingProducts: TopSellingProduct[];
+  restockRecommendations: RestockRecommendation[];
+  recentOrders: Order[];
   monitoringStatus: {
     isShopifyConnected: boolean;
     shopDomain: string;
     isDemoMode: boolean;
     lastSyncedAt: string;
-    thresholdHours: number;
-    emailEnabled: boolean;
     activeAlertsCount: number;
+    emailEnabled: boolean;
+    thresholdHours?: number;
   };
 }
 
 export interface TrendPoint {
   date: string;
-  overdueCount: number;
-  fulfilledCount: number;
-  totalCount: number;
+  unitsSold: number;
+  orderCount: number;
+  revenue: number;
 }
 
 export interface DashboardTrend {
@@ -150,12 +315,68 @@ export interface DashboardTrend {
   points: TrendPoint[];
 }
 
+export interface StockoutRiskGroup {
+  timeframe: '3_days' | '7_days' | '14_days' | '30_days';
+  label: string;
+  count: number;
+  items: Array<{
+    variantId: string;
+    productTitle: string;
+    variantTitle: string;
+    sku: string;
+    availableQuantity: number;
+    averageDailySales: number;
+    daysRemaining: number;
+  }>;
+}
+
+export interface SalesVelocitySummary {
+  fastMoving: Array<{
+    variantId: string;
+    productTitle: string;
+    variantTitle: string;
+    sku: string;
+    unitsSold: number;
+    averageDailySales: number;
+    availableQuantity: number;
+    daysRemaining: number | null;
+  }>;
+  slowMoving: Array<{
+    variantId: string;
+    productTitle: string;
+    variantTitle: string;
+    sku: string;
+    unitsSold: number;
+    averageDailySales: number;
+    availableQuantity: number;
+    daysRemaining: number | null;
+  }>;
+  periodDays: number;
+}
+
+export interface InventoryFilterQuery {
+  status?: 'all' | 'healthy' | 'low_stock' | 'out_of_stock' | 'untracked';
+  search?: string;
+  locationId?: string;
+  sortBy?: 'quantity' | 'salesVelocity' | 'daysRemaining' | 'name';
+  sortOrder?: 'asc' | 'desc';
+  page?: number;
+  limit?: number;
+}
+
 export interface OrderFilterQuery {
-  status?: 'all' | 'overdue' | 'pending' | 'fulfilled';
+  status?: 'all' | 'unfulfilled' | 'partial' | 'fulfilled' | 'cancelled' | 'overdue' | 'pending';
   search?: string;
   dateFrom?: string;
   dateTo?: string;
-  sortBy?: 'newest' | 'oldest' | 'overdue_desc';
+  sortBy?: 'newest' | 'oldest' | 'total_desc' | 'overdue_desc';
+  page?: number;
+  limit?: number;
+}
+
+export interface AlertFilterQuery {
+  alertType?: 'all' | AlertType;
+  status?: 'all' | AlertStatus;
   page?: number;
   limit?: number;
 }
@@ -199,6 +420,7 @@ export interface ShopifyIntegrationStatus {
   appUrl: string;
   scopes: string[];
   lastSyncedAt: string;
-  webhookCount: number;
   activeOrdersCount: number;
+  totalProductsCount: number;
+  totalVariantsCount: number;
 }

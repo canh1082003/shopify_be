@@ -38,17 +38,17 @@ export class EmailService {
       <html>
       <head>
         <meta charset="utf-8">
-        <title>Order Watchdog Overdue Alert</title>
+        <title>StockPilot Inventory Alert</title>
       </head>
       <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #0f172a;">
         <div style="max-width: 620px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
           <!-- Header -->
-          <div style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); padding: 24px 32px; color: #ffffff;">
+          <div style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); padding: 24px 32px; color: #ffffff;">
             <div style="font-size: 20px; font-weight: 800; letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px;">
-              🛡️ Order Watchdog
+              📦 StockPilot
             </div>
-            <p style="margin: 6px 0 0; color: #c7d2fe; font-size: 13px;">
-              Overdue Fulfillment Alert for <strong>${shopName}</strong>
+            <p style="margin: 6px 0 0; color: #bfdbfe; font-size: 13px;">
+              Inventory &amp; Restock Alert for <strong>${shopName}</strong>
             </p>
           </div>
 
@@ -77,15 +77,15 @@ export class EmailService {
             </table>
 
             <div style="margin-top: 32px; padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center;">
-              <a href="${config.clientOrigin}/orders?status=overdue" style="display: inline-block; background: #0f172a; color: #ffffff; padding: 10px 24px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 600;">
-                Open Order Watchdog Dashboard
+              <a href="${config.clientOrigin}/dashboard" style="display: inline-block; background: #2563eb; color: #ffffff; padding: 10px 24px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 600;">
+                Open StockPilot Dashboard
               </a>
             </div>
           </div>
 
           <!-- Footer -->
           <div style="background: #f1f5f9; padding: 16px 32px; font-size: 12px; color: #64748b; text-align: center;">
-            Never miss an overdue order again. Powered by Order Watchdog Shopify SaaS.
+            Smarter Inventory. Better Decisions. Powered by StockPilot Shopify SaaS.
           </div>
         </div>
       </body>
@@ -101,7 +101,7 @@ export class EmailService {
     recipientEmail: string
   ): Promise<{ success: boolean; isSimulated: boolean; message: string }> {
     const isSmtpConfigured = config.email.isConfigured;
-    const subject = '🔔 [Test Alert] Order Watchdog Email Notification System';
+    const subject = '🔔 [Test Alert] StockPilot Email Notification System';
 
     const log: NotificationLog = {
       id: `log-${Date.now()}`,

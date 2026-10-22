@@ -11,6 +11,8 @@ export class ShopifyService {
   public async getStatus(): Promise<ShopifyIntegrationStatus> {
     const primaryShop = await repository.getPrimaryShop();
     const orders = await repository.getAllActiveOrders(primaryShop.id);
+    const inventory = await repository.getInventory(primaryShop.id, { limit: 1 });
+    const summary = await repository.getStockPilotDashboardSummary(primaryShop.id);
 
     return {
       isConfigured: config.shopify.isConfigured,
@@ -19,9 +21,10 @@ export class ShopifyService {
       isDemoMode: primaryShop.isDemo || !config.shopify.isConfigured,
       appUrl: config.shopify.appUrl,
       scopes: config.shopify.scopes,
-      lastSyncedAt: orders.length > 0 ? orders[0].lastSyncedAt : new Date().toISOString(),
-      webhookCount: 3, // orders/create, orders/updated, app/uninstalled
+      lastSyncedAt: summary.monitoringStatus.lastSyncedAt,
       activeOrdersCount: orders.length,
+      totalProductsCount: summary.kpis.totalProducts,
+      totalVariantsCount: inventory.total,
     };
   }
 
@@ -46,13 +49,11 @@ export class ShopifyService {
    */
   public async handleOAuthCallback(
     shopDomain: string,
-    code: string,
+    _code: string,
     _state: string
   ): Promise<{ shop: Shop; session: ShopifySession }> {
     const cleanShop = shopDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
 
-    // In a production app with valid credentials, exchange code for permanent access token:
-    // const res = await fetch(`https://${cleanShop}/admin/oauth/access_token`, { ... });
     const mockAccessToken = `shpat_${crypto.randomBytes(16).toString('hex')}`;
     const encrypted = encryptToken(mockAccessToken);
 
@@ -94,7 +95,38 @@ export class ShopifyService {
   }
 
   /**
-   * Verify and process incoming Shopify Webhook
+   * Execute Shopify GraphQL Admin API query
+   */
+  public async executeGraphQL<T = any>(
+    shopDomain: string,
+    accessToken: string,
+    query: string,
+    variables: Record<string, any> = {}
+  ): Promise<T> {
+    const url = `https://${shopDomain}/admin/api/${config.shopify.apiVersion}/graphql.json`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': accessToken,
+      },
+      body: JSON.stringify({ query, variables }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Shopify GraphQL API error: ${response.status} ${response.statusText}`);
+    }
+
+    const json = (await response.json()) as any;
+    if (json.errors && json.errors.length > 0) {
+      throw new Error(`Shopify GraphQL error: ${json.errors[0].message}`);
+    }
+
+    return json.data;
+  }
+
+  /**
+   * Verify and process incoming Shopify Webhooks (idempotently)
    */
   public async handleWebhook(
     topic: string,
@@ -102,7 +134,6 @@ export class ShopifyService {
     hmacHeader: string,
     shopDomainHeader: string
   ): Promise<{ processed: boolean; message: string }> {
-    // 1. Verify HMAC if apiSecret configured
     if (config.shopify.apiSecret) {
       const isValid = verifyShopifyWebhookHmac(rawBody, hmacHeader, config.shopify.apiSecret);
       if (!isValid) {
@@ -113,7 +144,13 @@ export class ShopifyService {
     const shop = (await repository.getShopByDomain(shopDomainHeader)) || (await repository.getPrimaryShop());
     const payload = typeof rawBody === 'string' ? JSON.parse(rawBody) : JSON.parse(rawBody.toString('utf8'));
 
-    // Process specific topics idempotently
+    // 1. Inventory Level Update Webhook
+    if (topic === 'inventory_levels/connect' || topic === 'inventory_levels/update') {
+      await repository.recalculateStockLevels(shop.id);
+      return { processed: true, message: `Inventory level updated for item ${payload.inventory_item_id || 'item'}` };
+    }
+
+    // 2. Orders Create / Update Webhook
     if (topic === 'orders/create' || topic === 'orders/updated') {
       const orderData: Order = {
         id: `ord-${payload.id || Date.now()}`,
@@ -150,7 +187,6 @@ export class ShopifyService {
             sku: item.sku,
           })
         ),
-        deadline: null,
         isOverdue: false,
         overdueMinutes: 0,
         shopifyUrl: `https://admin.shopify.com/store/${shop.shopDomain.split('.')[0]}/orders/${payload.id}`,
@@ -162,17 +198,18 @@ export class ShopifyService {
       return { processed: true, message: `Order ${orderData.orderNumber} synced via webhook` };
     }
 
+    // 3. App Uninstalled Webhook
     if (topic === 'app/uninstalled') {
       shop.uninstalledAt = new Date().toISOString();
       await repository.upsertShop(shop);
       return { processed: true, message: `App uninstalled for shop ${shop.shopDomain}` };
     }
 
-    return { processed: true, message: `Webhook topic ${topic} received` };
+    return { processed: true, message: `Webhook topic ${topic} received and acknowledged` };
   }
 
   /**
-   * Manual Sync trigger from Dashboard
+   * Manual Sync trigger from Dashboard / TopBar
    */
   public async syncOrders(shopId: string): Promise<{ syncedCount: number; message: string }> {
     const orders = await repository.getAllActiveOrders(shopId);
@@ -183,9 +220,11 @@ export class ShopifyService {
       await repository.upsertOrder(shopId, order);
     }
 
+    await repository.recalculateStockLevels(shopId);
+
     return {
       syncedCount: orders.length,
-      message: `Synchronized ${orders.length} orders with Shopify store`,
+      message: `Synchronized ${orders.length} orders & re-evaluated inventory levels with Shopify store`,
     };
   }
 }

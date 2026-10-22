@@ -4,7 +4,7 @@ import { MonitorService } from '../services/monitor.service';
 import { Repository } from '../db/repository';
 import { Settings, Order } from '../types';
 
-describe('Order Watchdog - Monitor Engine & Eligibility Tests', () => {
+describe('StockPilot - Monitor Engine & Eligibility Tests', () => {
   const monitor = new MonitorService();
 
   const standardSettings: Pick<Settings, 'overdueThresholdHours' | 'warningLeadTimeHours'> = {
@@ -104,7 +104,7 @@ describe('Order Watchdog - Monitor Engine & Eligibility Tests', () => {
   });
 });
 
-describe('Order Watchdog - Repository & Tenant Isolation Tests', () => {
+describe('StockPilot - Repository & Tenant Isolation Tests', () => {
   const repo = new Repository();
 
   it('7. Tenant isolation: orders for Shop A are never returned in Shop B queries', async () => {
@@ -194,7 +194,7 @@ describe('Order Watchdog - Repository & Tenant Isolation Tests', () => {
   });
 });
 
-describe('Order Watchdog - Authentication & Token Security Tests', () => {
+describe('StockPilot - Authentication & Token Security Tests', () => {
   const { generateToken, verifyToken, generateTokenPair, verifyRefreshToken } = require('../utils/jwt');
 
   it('10. Valid token verification: returns authenticated tenant identity', () => {

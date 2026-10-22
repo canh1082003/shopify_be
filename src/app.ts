@@ -42,7 +42,7 @@ app.use(requestLogger);
 app.get('/', (_req, res) => {
   res.json({
     status: 'online',
-    service: 'Order Watchdog - Shopify SaaS API',
+    service: 'StockPilot - Shopify Inventory & Order Management API',
     version: '1.0.0',
     documentation: '/api',
   });

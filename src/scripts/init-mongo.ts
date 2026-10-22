@@ -51,7 +51,7 @@ async function initDatabase() {
     console.log('\n======================================================');
     console.log('🎉 TẠO DATABASE VÀ COLLECTIONS MONGODB THÀNH CÔNG!');
     console.log('======================================================');
-    console.log(`📁 Database: shopify_order_watchdog`);
+    console.log(`📁 Database: shopify_stockpilot`);
     console.log(`📋 Collections (Tables):`);
     console.log(`   - shops:             ${counts.shops} documents`);
     console.log(`   - shopify_sessions:  ${counts.sessions} documents`);

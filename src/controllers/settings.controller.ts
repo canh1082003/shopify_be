@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
 import { repository } from '../db/repository';
-import { monitorService } from '../services/monitor.service';
 import { AppError } from '../middleware/error.middleware';
 import { ApiResponse, Settings } from '../types';
 import { HttpStatus, ErrorCode } from '../constants/httpStatus';
@@ -9,7 +8,7 @@ export class SettingsController {
   public async getSettings(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const primaryShop = await repository.getPrimaryShop();
-      const shopId = req.shop?.shopId || primaryShop.id;
+      const shopId = (req as any).shop?.shopId || primaryShop.id;
 
       const settings = await repository.getSettings(shopId);
 
@@ -30,35 +29,49 @@ export class SettingsController {
   public async updateSettings(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const primaryShop = await repository.getPrimaryShop();
-      const shopId = req.shop?.shopId || primaryShop.id;
+      const shopId = (req as any).shop?.shopId || primaryShop.id;
       const {
-        overdueThresholdHours,
-        warningLeadTimeHours,
+        defaultLowStockThreshold,
+        defaultLeadTimeDays,
+        defaultSafetyStockDays,
+        salesVelocityDays,
+        locationScope,
         emailEnabled,
         notificationEmail,
-        digestFrequency,
-        autoAcknowledge,
-        excludeTags,
+        dailyDigest,
+        productOverrides,
+        overdueThresholdHours,
+        warningLeadTimeHours,
       } = req.body;
 
       // Validation
-      if (overdueThresholdHours !== undefined) {
-        const threshold = Number(overdueThresholdHours);
-        if (isNaN(threshold) || threshold <= 0 || threshold > 720) {
+      if (defaultLowStockThreshold !== undefined) {
+        const val = Number(defaultLowStockThreshold);
+        if (isNaN(val) || val < 0) {
           throw new AppError(
-            'Overdue threshold must be between 1 and 720 hours (30 days)',
+            'Default low stock threshold must be a non-negative number',
             HttpStatus.BAD_REQUEST,
             ErrorCode.VALIDATION_ERROR
           );
         }
       }
 
-      if (warningLeadTimeHours !== undefined) {
-        const lead = Number(warningLeadTimeHours);
-        const threshold = overdueThresholdHours !== undefined ? Number(overdueThresholdHours) : 24;
-        if (isNaN(lead) || lead < 0 || lead >= threshold) {
+      if (defaultLeadTimeDays !== undefined) {
+        const val = Number(defaultLeadTimeDays);
+        if (isNaN(val) || val < 1 || val > 180) {
           throw new AppError(
-            `Warning lead time must be between 0 and less than threshold (${threshold}h)`,
+            'Lead time must be between 1 and 180 days',
+            HttpStatus.BAD_REQUEST,
+            ErrorCode.VALIDATION_ERROR
+          );
+        }
+      }
+
+      if (defaultSafetyStockDays !== undefined) {
+        const val = Number(defaultSafetyStockDays);
+        if (isNaN(val) || val < 0 || val > 90) {
+          throw new AppError(
+            'Safety stock must be between 0 and 90 days',
             HttpStatus.BAD_REQUEST,
             ErrorCode.VALIDATION_ERROR
           );
@@ -77,22 +90,23 @@ export class SettingsController {
       }
 
       const updated = await repository.updateSettings(shopId, {
-        overdueThresholdHours,
-        warningLeadTimeHours,
+        defaultLowStockThreshold,
+        defaultLeadTimeDays,
+        defaultSafetyStockDays,
+        salesVelocityDays,
+        locationScope,
         emailEnabled,
         notificationEmail,
-        digestFrequency,
-        autoAcknowledge,
-        excludeTags,
+        dailyDigest,
+        productOverrides,
+        overdueThresholdHours,
+        warningLeadTimeHours,
       });
-
-      // Immediately re-evaluate orders with the new threshold
-      await monitorService.evaluateShopOrders(shopId);
 
       const response: ApiResponse<Settings> = {
         success: true,
         statusCode: HttpStatus.OK,
-        message: 'Settings updated successfully and order watchdog re-evaluated',
+        message: 'StockPilot inventory rules and notification settings updated successfully',
         data: updated,
         timestamp: new Date().toISOString(),
       };
