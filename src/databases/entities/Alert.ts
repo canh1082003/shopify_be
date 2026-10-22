@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
-export interface IAlert extends Document {
+export interface IAlert extends Document<string> {
+  _id: string;
   shopId: string;
   orderId: string;
   orderNumber: string;
@@ -17,6 +18,7 @@ export interface IAlert extends Document {
 
 const AlertSchema: Schema = new Schema(
   {
+    _id: { type: String, default: () => new mongoose.Types.ObjectId().toString() },
     shopId: { type: String, required: true, index: true },
     orderId: { type: String, required: true, index: true },
     orderNumber: { type: String, required: true },

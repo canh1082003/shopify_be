@@ -9,7 +9,8 @@ export interface ILineItem {
   sku?: string;
 }
 
-export interface IOrder extends Document {
+export interface IOrder extends Document<string> {
+  _id: string;
   shopId: string;
   shopifyOrderId: string;
   orderNumber: string;
@@ -48,6 +49,7 @@ const LineItemSchema = new Schema(
 
 const OrderSchema: Schema = new Schema(
   {
+    _id: { type: String, default: () => new mongoose.Types.ObjectId().toString() },
     shopId: { type: String, required: true, index: true },
     shopifyOrderId: { type: String, required: true },
     orderNumber: { type: String, required: true },
