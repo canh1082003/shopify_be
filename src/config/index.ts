@@ -15,12 +15,14 @@ export const config = {
 
   // Shopify App Store Credentials
   shopify: {
-    apiKey: process.env.SHOPIFY_API_KEY || '',
+    apiKey: process.env.SHOPIFY_API_KEY || process.env.SHOPIFY_API_ID || '',
     apiSecret: process.env.SHOPIFY_API_SECRET || '',
     scopes: (process.env.SHOPIFY_SCOPES || 'read_products,read_inventory,read_orders,read_locations').split(','),
     appUrl: process.env.APP_URL || 'http://localhost:5000',
     apiVersion: '2025-01',
-    isConfigured: Boolean(process.env.SHOPIFY_API_KEY && process.env.SHOPIFY_API_SECRET),
+    isConfigured: Boolean(
+      (process.env.SHOPIFY_API_KEY || process.env.SHOPIFY_API_ID) && process.env.SHOPIFY_API_SECRET
+    ),
   },
 
   // Security & Encryption

@@ -176,7 +176,7 @@
         "leadTimeDays": 7,
         "safetyStockDays": 5,
         "recommendedRestockQuantity": 0,
-        "updatedAt": "2026-10-22T08:21:25.646Z"
+        "updatedAt": "2026-10-26T10:05:46.882Z"
       },
       {
         "id": "var-102",
@@ -203,7 +203,7 @@
         "leadTimeDays": 7,
         "safetyStockDays": 5,
         "recommendedRestockQuantity": 26,
-        "updatedAt": "2026-10-22T08:21:25.646Z"
+        "updatedAt": "2026-10-26T10:05:46.883Z"
       },
       {
         "id": "var-103",
@@ -230,7 +230,7 @@
         "leadTimeDays": 7,
         "safetyStockDays": 5,
         "recommendedRestockQuantity": 24,
-        "updatedAt": "2026-10-22T08:21:25.646Z"
+        "updatedAt": "2026-10-26T10:05:46.883Z"
       },
       {
         "id": "var-104",
@@ -257,7 +257,7 @@
         "leadTimeDays": 7,
         "safetyStockDays": 5,
         "recommendedRestockQuantity": 0,
-        "updatedAt": "2026-10-22T08:21:25.646Z"
+        "updatedAt": "2026-10-26T10:05:46.883Z"
       },
       {
         "id": "var-201",
@@ -284,7 +284,7 @@
         "leadTimeDays": 10,
         "safetyStockDays": 5,
         "recommendedRestockQuantity": 37,
-        "updatedAt": "2026-10-22T08:21:25.646Z"
+        "updatedAt": "2026-10-26T10:05:46.883Z"
       },
       {
         "id": "var-202",
@@ -311,7 +311,7 @@
         "leadTimeDays": 7,
         "safetyStockDays": 5,
         "recommendedRestockQuantity": 0,
-        "updatedAt": "2026-10-22T08:21:25.646Z"
+        "updatedAt": "2026-10-26T10:05:46.883Z"
       },
       {
         "id": "var-301",
@@ -338,7 +338,7 @@
         "leadTimeDays": 7,
         "safetyStockDays": 5,
         "recommendedRestockQuantity": 17,
-        "updatedAt": "2026-10-22T08:21:25.646Z"
+        "updatedAt": "2026-10-26T10:05:46.883Z"
       },
       {
         "id": "var-401",
@@ -365,7 +365,7 @@
         "leadTimeDays": 7,
         "safetyStockDays": 5,
         "recommendedRestockQuantity": 2,
-        "updatedAt": "2026-10-22T08:21:25.646Z"
+        "updatedAt": "2026-10-26T10:05:46.883Z"
       },
       {
         "id": "var-402",
@@ -392,7 +392,7 @@
         "leadTimeDays": 7,
         "safetyStockDays": 5,
         "recommendedRestockQuantity": 0,
-        "updatedAt": "2026-10-22T08:21:25.646Z"
+        "updatedAt": "2026-10-26T10:05:46.883Z"
       },
       {
         "id": "var-501",
@@ -419,7 +419,7 @@
         "leadTimeDays": 7,
         "safetyStockDays": 5,
         "recommendedRestockQuantity": 17,
-        "updatedAt": "2026-10-22T08:21:25.646Z"
+        "updatedAt": "2026-10-26T10:05:46.883Z"
       },
       {
         "id": "var-502",
@@ -446,7 +446,7 @@
         "leadTimeDays": 7,
         "safetyStockDays": 5,
         "recommendedRestockQuantity": 0,
-        "updatedAt": "2026-10-22T08:21:25.646Z"
+        "updatedAt": "2026-10-26T10:05:46.883Z"
       },
       {
         "id": "var-601",
@@ -473,7 +473,7 @@
         "leadTimeDays": 7,
         "safetyStockDays": 5,
         "recommendedRestockQuantity": 33,
-        "updatedAt": "2026-10-22T08:21:25.646Z"
+        "updatedAt": "2026-10-26T10:05:46.883Z"
       },
       {
         "id": "var-701",
@@ -500,7 +500,7 @@
         "leadTimeDays": 7,
         "safetyStockDays": 5,
         "recommendedRestockQuantity": 0,
-        "updatedAt": "2026-10-22T08:21:25.646Z"
+        "updatedAt": "2026-10-26T10:05:46.883Z"
       }
     ]
   },
@@ -621,10 +621,10 @@
         ],
         "deadline": "2026-10-21T06:41:34.411Z",
         "isOverdue": true,
-        "overdueMinutes": 1539,
+        "overdueMinutes": 7404,
         "shopifyUrl": "https://admin.shopify.com/store/stockpilot-demo/orders/6102938471",
-        "lastSyncedAt": "2026-10-22T06:41:34.411Z",
-        "updatedAt": "2026-10-22T08:21:25.647Z"
+        "lastSyncedAt": "2026-10-26T07:24:52.124Z",
+        "updatedAt": "2026-10-26T10:05:46.885Z"
       },
       {
         "id": "ord-1002",
@@ -656,10 +656,10 @@
         ],
         "deadline": "2026-10-21T16:41:34.411Z",
         "isOverdue": true,
-        "overdueMinutes": 939,
+        "overdueMinutes": 6804,
         "shopifyUrl": "https://admin.shopify.com/store/stockpilot-demo/orders/6102938472",
-        "lastSyncedAt": "2026-10-22T06:41:34.411Z",
-        "updatedAt": "2026-10-22T08:21:25.647Z"
+        "lastSyncedAt": "2026-10-26T07:24:52.124Z",
+        "updatedAt": "2026-10-26T10:05:46.885Z"
       },
       {
         "id": "ord-1003",
@@ -699,11 +699,11 @@
           }
         ],
         "deadline": "2026-10-22T10:41:34.411Z",
-        "isOverdue": false,
-        "overdueMinutes": 0,
+        "isOverdue": true,
+        "overdueMinutes": 5724,
         "shopifyUrl": "https://admin.shopify.com/store/stockpilot-demo/orders/6102938473",
-        "lastSyncedAt": "2026-10-22T06:41:34.411Z",
-        "updatedAt": "2026-10-22T08:21:25.648Z"
+        "lastSyncedAt": "2026-10-26T07:24:52.124Z",
+        "updatedAt": "2026-10-26T10:05:46.886Z"
       },
       {
         "id": "ord-1004",
@@ -734,11 +734,11 @@
           }
         ],
         "deadline": "2026-10-22T16:41:34.411Z",
-        "isOverdue": false,
-        "overdueMinutes": 0,
+        "isOverdue": true,
+        "overdueMinutes": 5364,
         "shopifyUrl": "https://admin.shopify.com/store/stockpilot-demo/orders/6102938474",
-        "lastSyncedAt": "2026-10-22T06:41:34.411Z",
-        "updatedAt": "2026-10-22T08:21:25.648Z"
+        "lastSyncedAt": "2026-10-26T07:24:52.124Z",
+        "updatedAt": "2026-10-26T10:05:46.886Z"
       },
       {
         "id": "ord-1005",
@@ -772,8 +772,8 @@
         "isOverdue": false,
         "overdueMinutes": 0,
         "shopifyUrl": "https://admin.shopify.com/store/stockpilot-demo/orders/6102938475",
-        "lastSyncedAt": "2026-10-22T06:41:34.411Z",
-        "updatedAt": "2026-10-22T08:21:25.649Z"
+        "lastSyncedAt": "2026-10-26T07:24:52.124Z",
+        "updatedAt": "2026-10-26T10:05:46.887Z"
       },
       {
         "id": "ord-1006",
@@ -807,8 +807,8 @@
         "isOverdue": false,
         "overdueMinutes": 0,
         "shopifyUrl": "https://admin.shopify.com/store/stockpilot-demo/orders/6102938476",
-        "lastSyncedAt": "2026-10-22T06:41:34.411Z",
-        "updatedAt": "2026-10-22T08:21:25.649Z"
+        "lastSyncedAt": "2026-10-26T07:24:52.124Z",
+        "updatedAt": "2026-10-26T10:05:46.887Z"
       }
     ],
     "test-shop-a": [
@@ -837,14 +837,42 @@
   "alerts": {
     "shop-demo-001": [
       {
+        "id": "alert-1792724184254-fzst",
+        "shopId": "shop-demo-001",
+        "orderId": "ord-1004",
+        "orderNumber": "#1045",
+        "severity": "critical",
+        "status": "active",
+        "reason": "Order unfulfilled for 34.25h (exceeded 24h threshold).",
+        "elapsedHours": 34.25,
+        "thresholdHours": 24,
+        "createdAt": "2026-10-23T02:56:24.250Z",
+        "acknowledgedAt": null,
+        "resolvedAt": null
+      },
+      {
         "id": "alert-1792651662923-snyk",
         "shopId": "shop-demo-001",
         "orderId": "ord-1003",
         "orderNumber": "#1046",
-        "severity": "warning",
+        "severity": "critical",
         "status": "active",
-        "reason": "Fulfillment deadline approaching in 3.9h.",
-        "elapsedHours": 20.1,
+        "reason": "Order unfulfilled for 40.25h (exceeded 24h threshold).",
+        "elapsedHours": 40.25,
+        "thresholdHours": 24,
+        "createdAt": "2026-10-22T06:47:42.919Z",
+        "acknowledgedAt": null,
+        "resolvedAt": null
+      },
+      {
+        "id": "alert-1792651662923-snyk",
+        "shopId": "shop-demo-001",
+        "orderId": "ord-1003",
+        "orderNumber": "#1046",
+        "severity": "critical",
+        "status": "active",
+        "reason": "Order unfulfilled for 40.25h (exceeded 24h threshold).",
+        "elapsedHours": 40.25,
         "thresholdHours": 24,
         "createdAt": "2026-10-22T06:47:42.919Z",
         "acknowledgedAt": null,

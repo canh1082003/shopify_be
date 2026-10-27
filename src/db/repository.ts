@@ -1865,6 +1865,65 @@ export class Repository {
     return list.slice(0, limit);
   }
 
+  // ==========================================
+  // PRODUCTS & VARIANTS PERSISTENCE
+  // ==========================================
+  public async getProducts(shopId: string): Promise<Product[]> {
+    return this.db.products[shopId] ? [...this.db.products[shopId]] : [];
+  }
+
+  public async upsertProducts(shopId: string, products: Product[]): Promise<void> {
+    if (!this.db.products[shopId]) {
+      this.db.products[shopId] = [];
+    }
+
+    for (const prod of products) {
+      const idx = this.db.products[shopId].findIndex(
+        (p) => p.id === prod.id || p.shopifyProductId === prod.shopifyProductId
+      );
+      if (idx >= 0) {
+        this.db.products[shopId][idx] = { ...this.db.products[shopId][idx], ...prod, updatedAt: new Date().toISOString() };
+      } else {
+        this.db.products[shopId].push(prod);
+      }
+
+      if (isMongoConnected()) {
+        ProductModel.findByIdAndUpdate(prod.id, { ...prod, _id: prod.id }, { upsert: true }).catch((e) =>
+          console.error('[Repository] MongoDB upsertProduct error:', e)
+        );
+      }
+    }
+    this.persist();
+  }
+
+  public async upsertVariants(shopId: string, variants: ProductVariant[]): Promise<void> {
+    if (!this.db.variants[shopId]) {
+      this.db.variants[shopId] = [];
+    }
+
+    for (const variant of variants) {
+      const idx = this.db.variants[shopId].findIndex(
+        (v) => v.id === variant.id || v.shopifyVariantId === variant.shopifyVariantId
+      );
+      if (idx >= 0) {
+        this.db.variants[shopId][idx] = {
+          ...this.db.variants[shopId][idx],
+          ...variant,
+          updatedAt: new Date().toISOString(),
+        };
+      } else {
+        this.db.variants[shopId].push(variant);
+      }
+
+      if (isMongoConnected()) {
+        VariantModel.findByIdAndUpdate(variant.id, { ...variant, _id: variant.id }, { upsert: true }).catch((e) =>
+          console.error('[Repository] MongoDB upsertVariant error:', e)
+        );
+      }
+    }
+    this.persist();
+  }
+
   public async syncWithMongo(): Promise<void> {
     if (!isMongoConnected()) return;
     console.info('[Repository] Synchronizing local store with MongoDB Atlas...');
