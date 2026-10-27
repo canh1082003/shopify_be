@@ -109,6 +109,34 @@ export type AlertType =
   | 'restock_soon'
   | 'untracked';
 
+export interface ProductImage {
+  id?: string;
+  url: string;
+  alt?: string;
+  position?: number;
+  width?: number;
+  height?: number;
+}
+
+export interface ProductOption {
+  id?: string;
+  name: string;
+  position?: number;
+  values: string[];
+}
+
+export interface VariantSelectedOption {
+  name: string;
+  value: string;
+}
+
+export interface VariantDimensions {
+  length?: number;
+  width?: number;
+  height?: number;
+  unit?: string;
+}
+
 export interface ProductVariant {
   id: string;
   shopId: string;
@@ -120,9 +148,16 @@ export interface ProductVariant {
   sku: string;
   title: string;
   price: number;
+  compareAtPrice?: number | null;
   costPrice: number;
   tracked: boolean;
+  requiresShipping?: boolean;
+  taxable?: boolean;
   barcode?: string | null;
+  weight?: number;
+  weightUnit?: string;
+  dimensions?: VariantDimensions;
+  selectedOptions?: VariantSelectedOption[];
   locationId: string;
   locationName: string;
   availableQuantity: number;
@@ -134,6 +169,7 @@ export interface ProductVariant {
   leadTimeDays: number;
   safetyStockDays: number;
   recommendedRestockQuantity: number;
+  attributes?: Record<string, any>;
   updatedAt: string;
 }
 
@@ -159,12 +195,20 @@ export interface Product {
   shopId: string;
   shopifyProductId: string;
   title: string;
+  handle?: string;
   description?: string;
   vendor: string;
   productType: string;
+  category?: string;
+  productKind?: 'physical' | 'digital' | 'service' | 'bundle';
   status: 'active' | 'draft' | 'archived';
   imageUrl?: string | null;
+  images?: ProductImage[];
+  options?: ProductOption[];
   tags?: string[];
+  attributes?: Record<string, any>;
+  hasVariants?: boolean;
+  publishedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -37,6 +37,12 @@ export class IntegrationController {
 
       const { authUrl, state } = shopifyService.generateAuthUrl(shopDomain);
 
+      // If requested directly from browser, redirect immediately to Shopify authorize screen
+      if (req.query.redirect === 'true' || req.headers.accept?.includes('text/html')) {
+        res.redirect(authUrl);
+        return;
+      }
+
       const response: ApiResponse<{ authUrl: string; state: string }> = {
         success: true,
         statusCode: HttpStatus.OK,
@@ -101,7 +107,7 @@ export class IntegrationController {
       const primaryShop = await repository.getPrimaryShop();
       const shopId = req.shop?.shopId || primaryShop.id;
 
-      const result = await shopifyService.syncOrders(shopId);
+      const result = await shopifyService.syncAll(shopId);
 
       const response: ApiResponse<typeof result> = {
         success: true,
