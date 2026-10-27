@@ -75,7 +75,8 @@ export class ShopifyService {
             console.info(`[ShopifyService] Successfully exchanged OAuth token for ${cleanShop}`);
           }
         } else {
-          console.warn('[ShopifyService] Token exchange failed with status', tokenRes.status);
+          const errText = await tokenRes.text();
+          console.warn(`[ShopifyService] Token exchange failed for ${cleanShop} with status ${tokenRes.status}:`, errText);
         }
       } catch (err) {
         console.warn('[ShopifyService] Token exchange network error', err);
