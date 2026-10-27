@@ -4,6 +4,7 @@ import { repository } from '../db/repository';
 import { AppError } from '../middleware/error.middleware';
 import { ApiResponse, ShopifyIntegrationStatus } from '../types';
 import { HttpStatus, ErrorCode } from '../constants/httpStatus';
+import { config } from '../config';
 
 export class IntegrationController {
   public async getStatus(_req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -72,7 +73,7 @@ export class IntegrationController {
       const result = await shopifyService.handleOAuthCallback(shop, code, state || '');
 
       // In production embedded app, redirect to embedded app host
-      res.redirect(`http://localhost:5173/?shop=${encodeURIComponent(result.shop.shopDomain)}&installed=true`);
+      res.redirect(`${config.clientOrigin}/?shop=${encodeURIComponent(result.shop.shopDomain)}&installed=true`);
     } catch (err) {
       next(err);
     }

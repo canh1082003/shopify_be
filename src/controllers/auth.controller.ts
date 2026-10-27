@@ -16,6 +16,25 @@ export class AuthController {
       let shop = null;
       if (shopDomain) {
         shop = await repository.getShopByDomain(shopDomain);
+        if (!shop) {
+          const cleanShop = shopDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+          shop = {
+            id: `shop-${cleanShop.replace(/[^a-zA-Z0-9]/g, '_')}`,
+            shopDomain: cleanShop,
+            shopifyShopId: `gid://shopify/Shop/${Math.floor(Math.random() * 90000000 + 10000000)}`,
+            name: cleanShop.split('.')[0],
+            email: `contact@${cleanShop}`,
+            timezone: 'Asia/Ho_Chi_Minh',
+            currency: 'USD',
+            plan: 'Standard',
+            installedAt: new Date().toISOString(),
+            uninstalledAt: null,
+            isDemo: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          await repository.upsertShop(shop);
+        }
       }
       if (!shop) {
         shop = await repository.getPrimaryShop();

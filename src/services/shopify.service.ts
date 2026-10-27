@@ -49,31 +49,63 @@ export class ShopifyService {
    */
   public async handleOAuthCallback(
     shopDomain: string,
-    _code: string,
+    code: string,
     _state: string
   ): Promise<{ shop: Shop; session: ShopifySession }> {
     const cleanShop = shopDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
 
-    const mockAccessToken = `shpat_${crypto.randomBytes(16).toString('hex')}`;
-    const encrypted = encryptToken(mockAccessToken);
+    // Real OAuth exchange: swap authorization code for permanent access token
+    let accessToken = `shpat_${crypto.randomBytes(16).toString('hex')}`;
+    if (config.shopify.apiKey && config.shopify.apiSecret && code) {
+      try {
+        const tokenRes = await fetch(`https://${cleanShop}/admin/oauth/access_token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            client_id: config.shopify.apiKey,
+            client_secret: config.shopify.apiSecret,
+            code,
+          }),
+        });
+
+        if (tokenRes.ok) {
+          const tokenData = (await tokenRes.json()) as any;
+          if (tokenData.access_token) {
+            accessToken = tokenData.access_token;
+            console.info(`[ShopifyService] Successfully exchanged OAuth token for ${cleanShop}`);
+          }
+        } else {
+          console.warn('[ShopifyService] Token exchange failed with status', tokenRes.status);
+        }
+      } catch (err) {
+        console.warn('[ShopifyService] Token exchange network error', err);
+      }
+    }
+
+    const encrypted = encryptToken(accessToken);
 
     let shop = await repository.getShopByDomain(cleanShop);
     if (!shop) {
       shop = {
-        id: `shop-${Date.now()}`,
+        id: `shop-${cleanShop.replace(/[^a-zA-Z0-9]/g, '_')}`,
         shopDomain: cleanShop,
         shopifyShopId: `gid://shopify/Shop/${Math.floor(Math.random() * 90000000 + 10000000)}`,
         name: cleanShop.split('.')[0],
         email: `contact@${cleanShop}`,
-        timezone: 'UTC',
+        timezone: 'Asia/Ho_Chi_Minh',
         currency: 'USD',
-        plan: 'Basic',
+        plan: 'Standard',
         installedAt: new Date().toISOString(),
         uninstalledAt: null,
         isDemo: false,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
+      await repository.upsertShop(shop);
+    } else {
+      shop.isDemo = false;
+      shop.uninstalledAt = null;
+      shop.updatedAt = new Date().toISOString();
       await repository.upsertShop(shop);
     }
 
@@ -91,6 +123,16 @@ export class ShopifyService {
     };
 
     await repository.saveSession(session);
+
+    // Auto-trigger full initial sync in background
+    this.syncAll(shop.id)
+      .then((res) => {
+        console.info(`[ShopifyService] Initial sync complete for ${cleanShop}:`, res.message);
+      })
+      .catch((err) => {
+        console.error(`[ShopifyService] Initial sync error for ${cleanShop}:`, err);
+      });
+
     return { shop, session };
   }
 
