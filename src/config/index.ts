@@ -7,7 +7,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 export const config = {
   port: parseInt(process.env.PORT || '5000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
-  clientOrigin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
+  clientOrigin: process.env.CLIENT_ORIGIN || 'https://shopify-fe-chi.vercel.app',
   isProduction: process.env.NODE_ENV === 'production',
 
   // Database
@@ -18,7 +18,7 @@ export const config = {
     apiKey: process.env.SHOPIFY_API_KEY || process.env.SHOPIFY_API_ID || '',
     apiSecret: process.env.SHOPIFY_API_SECRET || '',
     scopes: (process.env.SHOPIFY_SCOPES || 'read_products,read_inventory,read_orders,read_locations').split(','),
-    appUrl: process.env.APP_URL || 'http://localhost:5000',
+    appUrl: process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || 'https://shopify-be-3jd9.onrender.com',
     apiVersion: '2025-01',
     isConfigured: Boolean(
       (process.env.SHOPIFY_API_KEY || process.env.SHOPIFY_API_ID) && process.env.SHOPIFY_API_SECRET
