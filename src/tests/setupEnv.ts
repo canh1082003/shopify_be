@@ -17,3 +17,12 @@ delete process.env.mongodb_url;
 delete process.env.MONGODB_URI;
 delete process.env.DATABASE_URL;
 
+// 3. Provide deterministic mock credentials for offline testing and CI runners
+if (!process.env.SHOPIFY_API_KEY) {
+  process.env.SHOPIFY_API_KEY = 'test_mock_shopify_api_key_ci';
+}
+if (!process.env.SHOPIFY_API_SECRET) {
+  process.env.SHOPIFY_API_SECRET = 'test_mock_shopify_api_secret_ci_shpss_123456';
+}
+
+
