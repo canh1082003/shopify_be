@@ -328,8 +328,6 @@ export class ShopifyService {
                         name
                         value
                       }
-                      weight
-                      weightUnit
                     }
                   }
                 }
@@ -422,8 +420,8 @@ export class ShopifyService {
               tracked,
               requiresShipping: true,
               taxable: true,
-              weight: vNode.weight || 0,
-              weightUnit: (vNode.weightUnit?.toLowerCase() as any) || 'kg',
+              weight: 0,
+              weightUnit: 'kg',
               selectedOptions: vNode.selectedOptions || [],
               locationId: 'loc-main',
               locationName: 'Main Warehouse',
