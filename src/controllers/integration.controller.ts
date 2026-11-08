@@ -72,8 +72,14 @@ export class IntegrationController {
 
       const result = await shopifyService.handleOAuthCallback(shop, code, state || '');
 
-      // In production embedded app, redirect to embedded app host
-      res.redirect(`${config.clientOrigin}/?shop=${encodeURIComponent(result.shop.shopDomain)}&installed=true`);
+      // In production embedded app, redirect directly back into Shopify Admin embedded app frame
+      const cleanStore = result.shop.shopDomain.replace('.myshopify.com', '');
+      const embeddedUrl = `https://admin.shopify.com/store/${cleanStore}/apps/warehouse-management-12`;
+      const targetOrigin = config.clientOrigin && !config.clientOrigin.includes('localhost')
+        ? config.clientOrigin
+        : embeddedUrl;
+
+      res.redirect(targetOrigin);
     } catch (err) {
       next(err);
     }
