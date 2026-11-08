@@ -3,12 +3,15 @@ import { repository } from '../db/repository';
 import { AppError } from '../middleware/error.middleware';
 import { ApiResponse, StockAlert, PaginatedResult } from '../types';
 import { HttpStatus, ErrorCode } from '../constants/httpStatus';
+import { getAuthenticatedShopId, assertTenantMatch } from '../middleware/auth.middleware';
 
 export class AlertController {
   public async getAlerts(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const primaryShop = await repository.getPrimaryShop();
-      const shopId = (req as any).shop?.shopId || primaryShop.id;
+      const shopId = getAuthenticatedShopId(req);
+      if (req.query.shopId && typeof req.query.shopId === 'string') {
+        assertTenantMatch(req, req.query.shopId);
+      }
 
       const alertType = req.query.alertType as any;
       const status = req.query.status as any;
@@ -38,9 +41,7 @@ export class AlertController {
 
   public async getSummary(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const primaryShop = await repository.getPrimaryShop();
-      const shopId = (req as any).shop?.shopId || primaryShop.id;
-
+      const shopId = getAuthenticatedShopId(req);
       const summary = await repository.getStockAlertsSummary(shopId);
 
       const response: ApiResponse<typeof summary> = {
@@ -59,8 +60,7 @@ export class AlertController {
 
   public async acknowledge(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const primaryShop = await repository.getPrimaryShop();
-      const shopId = (req as any).shop?.shopId || primaryShop.id;
+      const shopId = getAuthenticatedShopId(req);
       const { id } = req.params;
 
       const updated = await repository.acknowledgeStockAlert(shopId, id);
@@ -96,8 +96,7 @@ export class AlertController {
 
   public async dismiss(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const primaryShop = await repository.getPrimaryShop();
-      const shopId = (req as any).shop?.shopId || primaryShop.id;
+      const shopId = getAuthenticatedShopId(req);
       const { id } = req.params;
 
       const updated = await repository.dismissStockAlert(shopId, id);

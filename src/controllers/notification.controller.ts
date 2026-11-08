@@ -4,12 +4,12 @@ import { repository } from '../db/repository';
 import { AppError } from '../middleware/error.middleware';
 import { ApiResponse } from '../types';
 import { HttpStatus, ErrorCode } from '../constants/httpStatus';
+import { getAuthenticatedShopId } from '../middleware/auth.middleware';
 
 export class NotificationController {
   public async sendTestNotification(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const primaryShop = await repository.getPrimaryShop();
-      const shopId = req.shop?.shopId || primaryShop.id;
+      const shopId = getAuthenticatedShopId(req);
       const { email } = req.body;
 
       const targetEmail = email || (await repository.getSettings(shopId)).notificationEmail;
@@ -36,9 +36,7 @@ export class NotificationController {
 
   public async getLogs(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const primaryShop = await repository.getPrimaryShop();
-      const shopId = req.shop?.shopId || primaryShop.id;
-
+      const shopId = getAuthenticatedShopId(req);
       const logs = await repository.getNotificationLogs(shopId);
 
       const response: ApiResponse<typeof logs> = {

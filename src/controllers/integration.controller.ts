@@ -5,11 +5,24 @@ import { AppError } from '../middleware/error.middleware';
 import { ApiResponse, ShopifyIntegrationStatus } from '../types';
 import { HttpStatus, ErrorCode } from '../constants/httpStatus';
 import { config } from '../config';
+import { getAuthenticatedShopId } from '../middleware/auth.middleware';
+import {
+  validateAndNormalizeShopDomain,
+  verifyShopifyOAuthHmac,
+  getOAuthCookieName,
+  parseCookies,
+  buildOAuthCookieHeader,
+  buildClearOAuthCookieHeader,
+  verifyOAuthStateFormat,
+  buildSecureEmbeddedAppRedirect,
+  sha256,
+} from '../utils/shopifyOAuth';
 
 export class IntegrationController {
-  public async getStatus(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  public async getStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const status = await shopifyService.getStatus();
+      const shopId = getAuthenticatedShopId(req);
+      const status = await shopifyService.getStatus(shopId);
 
       const response: ApiResponse<ShopifyIntegrationStatus> = {
         success: true,
@@ -27,16 +40,13 @@ export class IntegrationController {
 
   public async getAuthUrl(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const shopDomain = req.query.shop as string;
-      if (!shopDomain) {
-        throw new AppError(
-          'Query parameter "shop" is required (e.g. ?shop=yourstore.myshopify.com)',
-          HttpStatus.BAD_REQUEST,
-          ErrorCode.VALIDATION_ERROR
-        );
-      }
+      const rawShop = req.query.shop;
+      const normalizedShop = validateAndNormalizeShopDomain(rawShop);
 
-      const { authUrl, state } = shopifyService.generateAuthUrl(shopDomain);
+      const { authUrl, state, nonce, browserNonce } = await shopifyService.generateAuthUrl(normalizedShop);
+
+      // Set host-only, Path=/, HttpOnly, Secure, SameSite=Lax cookie for browser binding (Finding 1)
+      res.setHeader('Set-Cookie', buildOAuthCookieHeader(nonce, browserNonce));
 
       // If requested directly from browser, redirect immediately to Shopify authorize screen
       if (req.query.redirect === 'true' || req.headers.accept?.includes('text/html')) {
@@ -60,26 +70,107 @@ export class IntegrationController {
 
   public async handleOAuthCallback(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { shop, code, state } = req.query as { shop?: string; code?: string; state?: string };
+      const query = req.query as Record<string, any>;
+      const { shop, code, state, hmac, host } = query;
 
-      if (!shop || !code) {
+      // 1. Mandatory HMAC query parameter verification
+      if (!hmac || typeof hmac !== 'string' || !hmac.trim()) {
         throw new AppError(
-          'Missing required OAuth callback parameters "shop" or "code"',
+          'Missing or invalid HMAC signature in OAuth callback',
+          HttpStatus.UNAUTHORIZED,
+          ErrorCode.AUTH_INVALID_TOKEN
+        );
+      }
+
+      // 2. Cryptographic HMAC verification using SHOPIFY_API_SECRET
+      const isValidHmac = verifyShopifyOAuthHmac(query, config.shopify.apiSecret);
+      if (!isValidHmac) {
+        throw new AppError(
+          'Shopify OAuth HMAC signature verification failed',
+          HttpStatus.UNAUTHORIZED,
+          ErrorCode.AUTH_INVALID_TOKEN
+        );
+      }
+
+      // 3. Strict Shop Domain validation
+      const normalizedShop = validateAndNormalizeShopDomain(shop);
+
+      // 4. Authorization code presence check
+      if (!code || typeof code !== 'string' || !code.trim()) {
+        throw new AppError(
+          'Missing authorization code in OAuth callback',
           HttpStatus.BAD_REQUEST,
           ErrorCode.VALIDATION_ERROR
         );
       }
 
-      const result = await shopifyService.handleOAuthCallback(shop, code, state || '');
+      // 5. CSRF State presence check & HMAC format/signature check
+      if (!state || typeof state !== 'string' || !state.trim()) {
+        throw new AppError(
+          'Missing OAuth state parameter',
+          HttpStatus.BAD_REQUEST,
+          ErrorCode.VALIDATION_ERROR
+        );
+      }
 
-      // In production embedded app, redirect directly back into Shopify Admin embedded app frame
-      const cleanStore = result.shop.shopDomain.replace('.myshopify.com', '');
-      const embeddedUrl = `https://admin.shopify.com/store/${cleanStore}/apps/warehouse-management-12`;
-      const targetOrigin = config.clientOrigin && !config.clientOrigin.includes('localhost')
-        ? config.clientOrigin
-        : embeddedUrl;
+      const stateVerification = verifyOAuthStateFormat(state, normalizedShop, config.shopify.apiSecret);
+      if (!stateVerification) {
+        throw new AppError(
+          'Invalid, expired, or tampered OAuth state parameter',
+          HttpStatus.BAD_REQUEST,
+          ErrorCode.VALIDATION_ERROR
+        );
+      }
 
-      res.redirect(targetOrigin);
+      const { nonce } = stateVerification;
+
+      // 6. Browser-bound cookie verification (Strict RFC 6265bis __Host- cookie)
+      const cookies = parseCookies(req.headers.cookie);
+      const cookieName = getOAuthCookieName(nonce);
+      const browserNonce = cookies[cookieName];
+
+      // Always clear transaction cookie upon terminal callback evaluation
+      res.setHeader('Set-Cookie', buildClearOAuthCookieHeader(nonce));
+
+      if (!browserNonce || typeof browserNonce !== 'string' || !browserNonce.trim()) {
+        throw new AppError(
+          'OAuth transaction was not initiated by this browser session or cookie expired',
+          HttpStatus.BAD_REQUEST,
+          ErrorCode.VALIDATION_ERROR
+        );
+      }
+
+      // 7. Atomic Replay Protection & Transaction Consumption (Finding 2)
+      const stateHash = sha256(state);
+      const browserNonceHash = sha256(browserNonce.trim());
+
+      const consumed = await repository.consumeOAuthTransaction(
+        nonce,
+        normalizedShop,
+        stateHash,
+        browserNonceHash
+      );
+
+      if (!consumed) {
+        throw new AppError(
+          'OAuth transaction is invalid, expired, cross-browser, or already consumed',
+          HttpStatus.BAD_REQUEST,
+          ErrorCode.VALIDATION_ERROR
+        );
+      }
+
+      // 8. Secure Token Exchange & Real Shop Identity Retrieval (Findings 3 & 5)
+      const result = await shopifyService.handleOAuthCallback(normalizedShop, code, state);
+
+      // 9. Secure Configuration-Driven Dynamic Embedded App Redirect (Finding 6)
+      const redirectUrl = buildSecureEmbeddedAppRedirect(
+        result.shop.shopDomain,
+        host,
+        config.shopify.appHandle,
+        config.clientOrigin
+      );
+
+      res.redirect(redirectUrl);
     } catch (err) {
       next(err);
     }
@@ -95,7 +186,16 @@ export class IntegrationController {
         throw new AppError('Missing X-Shopify-Topic header', HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR);
       }
 
-      const rawBody = JSON.stringify(req.body);
+      // Exact raw request body bytes captured before JSON parsing
+      const rawBody = req.rawBody;
+      if (!rawBody || !Buffer.isBuffer(rawBody)) {
+        throw new AppError(
+          'Raw request body buffer is required for Shopify webhook HMAC verification',
+          HttpStatus.BAD_REQUEST,
+          ErrorCode.VALIDATION_ERROR
+        );
+      }
+
       const result = await shopifyService.handleWebhook(topic, rawBody, hmacHeader, shopDomain);
 
       res.status(HttpStatus.OK).json({
@@ -111,9 +211,7 @@ export class IntegrationController {
 
   public async triggerSync(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const primaryShop = await repository.getPrimaryShop();
-      const shopId = req.shop?.shopId || primaryShop.id;
-
+      const shopId = getAuthenticatedShopId(req);
       const result = await shopifyService.syncAll(shopId);
 
       const response: ApiResponse<typeof result> = {

@@ -16,7 +16,7 @@ export interface IShopifySession extends Document<string> {
 const ShopifySessionSchema: Schema = new Schema(
   {
     _id: { type: String, default: () => new mongoose.Types.ObjectId().toString() },
-    shopId: { type: String, required: true, index: true },
+    shopId: { type: String, required: true },
     sessionType: { type: String, enum: ['offline', 'online'], default: 'offline' },
     encryptedAccessToken: { type: String, required: true },
     iv: { type: String, required: true },
@@ -26,6 +26,17 @@ const ShopifySessionSchema: Schema = new Schema(
   },
   {
     timestamps: true,
+  }
+);
+
+// At most ONE offline session per shop (partial unique index)
+ShopifySessionSchema.index(
+  { shopId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      sessionType: 'offline',
+    },
   }
 );
 

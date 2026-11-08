@@ -3,12 +3,15 @@ import { repository } from '../db/repository';
 import { AppError } from '../middleware/error.middleware';
 import { ApiResponse, Order, PaginatedResult } from '../types';
 import { HttpStatus, ErrorCode } from '../constants/httpStatus';
+import { getAuthenticatedShopId, assertTenantMatch } from '../middleware/auth.middleware';
 
 export class OrderController {
   public async getOrders(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const primaryShop = await repository.getPrimaryShop();
-      const shopId = (req as any).shop?.shopId || primaryShop.id;
+      const shopId = getAuthenticatedShopId(req);
+      if (req.query.shopId && typeof req.query.shopId === 'string') {
+        assertTenantMatch(req, req.query.shopId);
+      }
 
       const status = req.query.status as any;
       const search = req.query.search as string | undefined;
@@ -44,8 +47,7 @@ export class OrderController {
 
   public async getOrderById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const primaryShop = await repository.getPrimaryShop();
-      const shopId = (req as any).shop?.shopId || primaryShop.id;
+      const shopId = getAuthenticatedShopId(req);
       const { id } = req.params;
 
       const order = await repository.getOrderById(shopId, id);

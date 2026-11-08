@@ -3,13 +3,12 @@ import { repository } from '../db/repository';
 import { AppError } from '../middleware/error.middleware';
 import { ApiResponse, Settings } from '../types';
 import { HttpStatus, ErrorCode } from '../constants/httpStatus';
+import { getAuthenticatedShopId } from '../middleware/auth.middleware';
 
 export class SettingsController {
   public async getSettings(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const primaryShop = await repository.getPrimaryShop();
-      const shopId = (req as any).shop?.shopId || primaryShop.id;
-
+      const shopId = getAuthenticatedShopId(req);
       const settings = await repository.getSettings(shopId);
 
       const response: ApiResponse<Settings> = {
@@ -28,8 +27,7 @@ export class SettingsController {
 
   public async updateSettings(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const primaryShop = await repository.getPrimaryShop();
-      const shopId = (req as any).shop?.shopId || primaryShop.id;
+      const shopId = getAuthenticatedShopId(req);
       const {
         defaultLowStockThreshold,
         defaultLeadTimeDays,

@@ -2,13 +2,12 @@ import { Request, Response, NextFunction } from 'express';
 import { repository } from '../db/repository';
 import { ApiResponse, DashboardSummary, DashboardTrend } from '../types';
 import { HttpStatus } from '../constants/httpStatus';
+import { getAuthenticatedShopId } from '../middleware/auth.middleware';
 
 export class DashboardController {
   public async getSummary(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const primaryShop = await repository.getPrimaryShop();
-      const shopId = (req as any).shop?.shopId || primaryShop.id;
-
+      const shopId = getAuthenticatedShopId(req);
       const data = await repository.getStockPilotDashboardSummary(shopId);
 
       const response: ApiResponse<DashboardSummary> = {
@@ -27,8 +26,7 @@ export class DashboardController {
 
   public async getSalesTrend(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const primaryShop = await repository.getPrimaryShop();
-      const shopId = (req as any).shop?.shopId || primaryShop.id;
+      const shopId = getAuthenticatedShopId(req);
       const rawDays = parseInt(req.query.days as string, 10);
       const days: 7 | 30 | 90 = rawDays === 30 ? 30 : rawDays === 90 ? 90 : 7;
 

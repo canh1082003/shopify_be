@@ -1,5 +1,7 @@
+import './bootstrap';
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
+import './testUtils';
 import { MonitorService } from '../services/monitor.service';
 import { Repository } from '../db/repository';
 import { Settings, Order } from '../types';
