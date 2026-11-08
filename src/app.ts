@@ -1,4 +1,4 @@
-import express, { Application } from 'express';
+import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
 import { config } from './config';
 import { requestLogger } from './middleware/logger.middleware';
@@ -31,8 +31,14 @@ app.use(
   })
 );
 
-// Middleware: Body parsers
-app.use(express.json());
+// Middleware: Body parsers with raw body buffer capture for HMAC signature verification
+app.use(
+  express.json({
+    verify: (req: any, _res: Response, buf: Buffer) => {
+      req.rawBody = buf;
+    },
+  })
+);
 app.use(express.urlencoded({ extended: true }));
 
 // Middleware: Custom Logger

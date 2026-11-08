@@ -37,11 +37,15 @@ const server = app.listen(PORT, async () => {
   // Initial inventory & order evaluation pass
   try {
     const primaryShop = await repository.getPrimaryShop();
-    await repository.recalculateStockLevels(primaryShop.id);
-    const result = await monitorService.evaluateShopOrders(primaryShop.id);
-    console.log(
-      `[StockPilot Engine] Initial pass complete: evaluated ${result.evaluatedCount} orders, recalculated stock status & alerts.`
-    );
+    if (primaryShop) {
+      await repository.recalculateStockLevels(primaryShop.id);
+      const result = await monitorService.evaluateShopOrders(primaryShop.id);
+      console.log(
+        `[StockPilot Engine] Initial pass complete: evaluated ${result.evaluatedCount} orders, recalculated stock status & alerts.`
+      );
+    } else {
+      console.log('[StockPilot Engine] No active Shopify shop installed yet. Standing by for OAuth installation.');
+    }
   } catch (err) {
     console.error('[StockPilot Engine] Initial pass failed:', err);
   }
@@ -50,8 +54,10 @@ const server = app.listen(PORT, async () => {
   monitoringTimer = setInterval(async () => {
     try {
       const primaryShop = await repository.getPrimaryShop();
-      await repository.recalculateStockLevels(primaryShop.id);
-      await monitorService.evaluateShopOrders(primaryShop.id);
+      if (primaryShop) {
+        await repository.recalculateStockLevels(primaryShop.id);
+        await monitorService.evaluateShopOrders(primaryShop.id);
+      }
     } catch (err) {
       console.error('[StockPilot Engine] Periodic pass error:', err);
     }

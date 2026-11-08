@@ -2,23 +2,42 @@ import crypto from 'crypto';
 import { config } from '../config';
 import { repository } from '../db/repository';
 import { decryptToken, encryptToken, verifyShopifyWebhookHmac } from '../utils/crypto';
+import { validateAndNormalizeShopDomain, generateOAuthState } from '../utils/shopifyOAuth';
+import { AppError } from '../middleware/error.middleware';
+import { HttpStatus, ErrorCode } from '../constants/httpStatus';
 import { Shop, ShopifySession, Order, ShopifyIntegrationStatus, Product, ProductVariant } from '../types';
 
 export class ShopifyService {
   /**
    * Check Shopify integration configuration status
    */
-  public async getStatus(): Promise<ShopifyIntegrationStatus> {
-    const primaryShop = await repository.getPrimaryShop();
-    const orders = await repository.getAllActiveOrders(primaryShop.id);
-    const inventory = await repository.getInventory(primaryShop.id, { limit: 1 });
-    const summary = await repository.getStockPilotDashboardSummary(primaryShop.id);
+  public async getStatus(shopId?: string): Promise<ShopifyIntegrationStatus> {
+    const shop = shopId ? await repository.getShop(shopId) : await repository.getPrimaryShop();
+
+    if (!shop || shop.uninstalledAt) {
+      return {
+        isConfigured: config.shopify.isConfigured,
+        isShopifyConnected: false,
+        shopDomain: '',
+        isDemoMode: false,
+        appUrl: config.shopify.appUrl,
+        scopes: config.shopify.scopes,
+        lastSyncedAt: new Date().toISOString(),
+        activeOrdersCount: 0,
+        totalProductsCount: 0,
+        totalVariantsCount: 0,
+      };
+    }
+
+    const orders = await repository.getAllActiveOrders(shop.id);
+    const inventory = await repository.getInventory(shop.id, { limit: 1 });
+    const summary = await repository.getStockPilotDashboardSummary(shop.id);
 
     return {
       isConfigured: config.shopify.isConfigured,
-      isShopifyConnected: !primaryShop.isDemo && config.shopify.isConfigured,
-      shopDomain: primaryShop.shopDomain,
-      isDemoMode: primaryShop.isDemo || !config.shopify.isConfigured,
+      isShopifyConnected: !shop.isDemo && config.shopify.isConfigured,
+      shopDomain: shop.shopDomain,
+      isDemoMode: shop.isDemo || !config.shopify.isConfigured,
       appUrl: config.shopify.appUrl,
       scopes: config.shopify.scopes,
       lastSyncedAt: summary.monitoringStatus.lastSyncedAt,
@@ -29,11 +48,30 @@ export class ShopifyService {
   }
 
   /**
-   * Generate official Shopify OAuth Install URL
+   * Generate official Shopify OAuth Install URL and record persistent transaction
    */
-  public generateAuthUrl(shopDomain: string): { authUrl: string; state: string } {
-    const cleanShop = shopDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
-    const state = crypto.randomBytes(16).toString('hex');
+  public async generateAuthUrl(shopDomain: string): Promise<{
+    authUrl: string;
+    state: string;
+    nonce: string;
+    browserNonce: string;
+  }> {
+    const cleanShop = validateAndNormalizeShopDomain(shopDomain);
+    const { state, nonce, browserNonce, stateHash, browserNonceHash, expiresAt } =
+      generateOAuthState(cleanShop, config.shopify.apiSecret);
+
+    // Persist OAuth transaction for atomic single-use replay protection
+    await repository.createOAuthTransaction({
+      nonce,
+      stateHash,
+      shopDomain: cleanShop,
+      browserNonceHash,
+      expiresAt,
+      consumedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
     const redirectUri = `${config.shopify.appUrl}/api/integrations/shopify/callback`;
     const scopes = config.shopify.scopes.join(',');
 
@@ -41,73 +79,170 @@ export class ShopifyService {
       redirectUri
     )}&state=${state}`;
 
-    return { authUrl, state };
+    return { authUrl, state, nonce, browserNonce };
   }
 
   /**
    * Process OAuth callback and save encrypted session
+   * Enforces secure code exchange with Shopify. Never fabricates credentials or falls back to fake tokens.
    */
   public async handleOAuthCallback(
     shopDomain: string,
     code: string,
     _state: string
   ): Promise<{ shop: Shop; session: ShopifySession }> {
-    const cleanShop = shopDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    const cleanShop = validateAndNormalizeShopDomain(shopDomain);
 
-    // Real OAuth exchange: swap authorization code for permanent access token
-    let accessToken = `shpat_${crypto.randomBytes(16).toString('hex')}`;
-    if (config.shopify.apiKey && config.shopify.apiSecret && code) {
-      try {
-        const tokenRes = await fetch(`https://${cleanShop}/admin/oauth/access_token`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            client_id: config.shopify.apiKey,
-            client_secret: config.shopify.apiSecret,
-            code,
-          }),
-        });
+    if (!code || typeof code !== 'string' || !code.trim()) {
+      throw new AppError(
+        'Missing authorization code for Shopify OAuth exchange',
+        HttpStatus.BAD_REQUEST,
+        ErrorCode.VALIDATION_ERROR
+      );
+    }
 
-        if (tokenRes.ok) {
-          const tokenData = (await tokenRes.json()) as any;
-          if (tokenData.access_token) {
-            accessToken = tokenData.access_token;
-            console.info(`[ShopifyService] Successfully exchanged OAuth token for ${cleanShop}`);
-          }
-        } else {
-          const errText = await tokenRes.text();
-          console.warn(`[ShopifyService] Token exchange failed for ${cleanShop} with status ${tokenRes.status}:`, errText);
-        }
-      } catch (err) {
-        console.warn('[ShopifyService] Token exchange network error', err);
+    if (!config.shopify.apiKey || !config.shopify.apiSecret) {
+      throw new AppError(
+        'Shopify API credentials are not configured on server',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        ErrorCode.AUTH_INVALID_TOKEN
+      );
+    }
+
+    let accessToken: string;
+    try {
+      const tokenRes = await fetch(`https://${cleanShop}/admin/oauth/access_token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: config.shopify.apiKey,
+          client_secret: config.shopify.apiSecret,
+          code: code.trim(),
+        }),
+        signal: AbortSignal.timeout(10000), // 10-second timeout
+      });
+
+      if (!tokenRes.ok) {
+        const errText = await tokenRes.text().catch(() => '');
+        console.error(`[ShopifyService] Token exchange failed for ${cleanShop} with HTTP ${tokenRes.status}`);
+        throw new AppError(
+          `Shopify OAuth token exchange failed with status ${tokenRes.status}`,
+          HttpStatus.UNAUTHORIZED,
+          ErrorCode.AUTH_INVALID_TOKEN
+        );
       }
+
+      const tokenData = (await tokenRes.json().catch(() => null)) as any;
+      if (!tokenData || typeof tokenData.access_token !== 'string' || !tokenData.access_token.trim()) {
+        console.error(`[ShopifyService] Token exchange returned invalid payload for ${cleanShop}`);
+        throw new AppError(
+          'Shopify OAuth token exchange response did not contain access_token',
+          HttpStatus.UNAUTHORIZED,
+          ErrorCode.AUTH_INVALID_TOKEN
+        );
+      }
+
+      accessToken = tokenData.access_token.trim();
+      console.info(`[ShopifyService] Successfully exchanged OAuth token for ${cleanShop}`);
+    } catch (err: any) {
+      if (err instanceof AppError) {
+        throw err;
+      }
+      console.error(`[ShopifyService] Token exchange network error for ${cleanShop}:`, err?.message || err);
+      throw new AppError(
+        'Shopify OAuth token exchange failed due to network or connection error',
+        HttpStatus.UNAUTHORIZED,
+        ErrorCode.AUTH_INVALID_TOKEN
+      );
+    }
+
+    // Retrieve authentic shop identity from Shopify GraphQL Admin API using verified access token
+    const shopIdentityQuery = `
+      query GetShopIdentity {
+        shop {
+          id
+          name
+          email
+          myshopifyDomain
+          currencyCode
+          ianaTimezone
+          plan {
+            displayName
+          }
+        }
+      }
+    `;
+
+    let realShopData: any;
+    try {
+      const gqlResult = await this.executeGraphQL<any>(cleanShop, accessToken, shopIdentityQuery);
+      realShopData = gqlResult?.shop;
+    } catch (gqlErr: any) {
+      console.error(`[ShopifyService] Failed to retrieve authentic shop identity for ${cleanShop}:`, gqlErr?.message || gqlErr);
+      throw new AppError(
+        'Failed to retrieve authentic shop identity from Shopify Admin API',
+        HttpStatus.UNAUTHORIZED,
+        ErrorCode.AUTH_INVALID_TOKEN
+      );
+    }
+
+    // Verify mandatory identity fields
+    if (
+      !realShopData ||
+      typeof realShopData.id !== 'string' ||
+      !realShopData.id.trim() ||
+      typeof realShopData.myshopifyDomain !== 'string' ||
+      !realShopData.myshopifyDomain.trim()
+    ) {
+      console.error(`[ShopifyService] Missing mandatory shop identity fields for ${cleanShop}`);
+      throw new AppError(
+        'Shopify Admin API returned incomplete shop identity',
+        HttpStatus.UNAUTHORIZED,
+        ErrorCode.AUTH_INVALID_TOKEN
+      );
+    }
+
+    // Strictly verify returned shop domain matches the authenticated OAuth shop
+    const returnedDomain = realShopData.myshopifyDomain.toLowerCase().trim();
+    if (returnedDomain !== cleanShop.toLowerCase().trim()) {
+      console.error(`[ShopifyService] Shop domain mismatch: expected ${cleanShop}, received ${returnedDomain}`);
+      throw new AppError(
+        'Shop identity domain mismatch: returned domain does not match target shop',
+        HttpStatus.UNAUTHORIZED,
+        ErrorCode.AUTH_INVALID_TOKEN
+      );
     }
 
     const encrypted = encryptToken(accessToken);
+    const now = new Date().toISOString();
 
     let shop = await repository.getShopByDomain(cleanShop);
     if (!shop) {
       shop = {
         id: `shop-${cleanShop.replace(/[^a-zA-Z0-9]/g, '_')}`,
         shopDomain: cleanShop,
-        shopifyShopId: `gid://shopify/Shop/${Math.floor(Math.random() * 90000000 + 10000000)}`,
-        name: cleanShop.split('.')[0],
-        email: `contact@${cleanShop}`,
-        timezone: 'Asia/Ho_Chi_Minh',
-        currency: 'USD',
-        plan: 'Standard',
-        installedAt: new Date().toISOString(),
+        shopifyShopId: realShopData.id.trim(),
+        name: realShopData.name?.trim() || cleanShop.split('.')[0],
+        email: realShopData.email?.trim() || null,
+        timezone: realShopData.ianaTimezone?.trim() || 'UTC',
+        currency: realShopData.currencyCode?.trim() || 'USD',
+        plan: realShopData.plan?.displayName?.trim() || 'Standard',
+        installedAt: now,
         uninstalledAt: null,
         isDemo: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: now,
+        updatedAt: now,
       };
-      await repository.upsertShop(shop);
     } else {
+      shop.shopifyShopId = realShopData.id.trim();
+      if (realShopData.name) shop.name = realShopData.name.trim();
+      if (realShopData.email) shop.email = realShopData.email.trim();
+      if (realShopData.ianaTimezone) shop.timezone = realShopData.ianaTimezone.trim();
+      if (realShopData.currencyCode) shop.currency = realShopData.currencyCode.trim();
+      if (realShopData.plan?.displayName) shop.plan = realShopData.plan.displayName.trim();
       shop.isDemo = false;
       shop.uninstalledAt = null;
-      shop.updatedAt = new Date().toISOString();
-      await repository.upsertShop(shop);
+      shop.updatedAt = now;
     }
 
     const session: ShopifySession = {
@@ -119,11 +254,12 @@ export class ShopifyService {
       authTag: encrypted.authTag,
       scope: config.shopify.scopes.join(','),
       expiresAt: null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: now,
+      updatedAt: now,
     };
 
-    await repository.saveSession(session);
+    // Atomic persistence of both shop and session (all or nothing)
+    await repository.saveShopAndSession(shop, session);
 
     // Auto-trigger full initial sync in background
     this.syncAll(shop.id)
@@ -184,7 +320,10 @@ export class ShopifyService {
       }
     }
 
-    const shop = (await repository.getShopByDomain(shopDomainHeader)) || (await repository.getPrimaryShop());
+    const shop = await repository.getShopByDomain(shopDomainHeader);
+    if (!shop) {
+      throw new Error(`Shop '${shopDomainHeader}' is not registered for webhook processing`);
+    }
     const payload = typeof rawBody === 'string' ? JSON.parse(rawBody) : JSON.parse(rawBody.toString('utf8'));
 
     // 1. Inventory Level Update Webhook
@@ -245,6 +384,8 @@ export class ShopifyService {
     if (topic === 'app/uninstalled') {
       shop.uninstalledAt = new Date().toISOString();
       await repository.upsertShop(shop);
+      await repository.deleteSession(shop.id);
+      await repository.revokeAllTokenFamiliesForShop(shop.id);
       return { processed: true, message: `App uninstalled for shop ${shop.shopDomain}` };
     }
 
@@ -263,12 +404,12 @@ export class ShopifyService {
     }
 
     const session = await repository.getSession(shopId);
-    let accessToken = process.env.SHOPIFY_ACCESS_TOKEN || '';
-    if (!accessToken && session && session.encryptedAccessToken && session.iv && session.authTag) {
+    let accessToken = '';
+    if (session && session.encryptedAccessToken && session.iv && session.authTag) {
       try {
         accessToken = decryptToken(session.encryptedAccessToken, session.iv, session.authTag);
       } catch (e) {
-        console.warn('[ShopifyService] Failed to decrypt session access token', e);
+        console.warn(`[ShopifyService] Failed to decrypt session access token for ${shop.shopDomain}:`, e);
       }
     }
 

@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import mongoose from 'mongoose';
 import {
   Shop,
   ShopifySession,
@@ -33,8 +34,35 @@ import {
   ProductVariant as VariantModel,
   Settings as SettingsModel,
   NotificationLog as NotificationLogModel,
+  OAuthTransaction as OAuthTransactionModel,
+  TokenFamily as TokenFamilyModel,
 } from '../databases';
 import { forecastingService } from '../services/forecasting.service';
+import { AppError } from '../middleware/error.middleware';
+import { HttpStatus, ErrorCode } from '../constants/httpStatus';
+
+export interface TokenFamilyRecord {
+  familyId: string;
+  shopId: string;
+  currentJti: string;
+  previousJti?: string;
+  rotatedAt?: string;
+  revoked: boolean;
+  revokedReason?: string;
+  createdAt: string;
+  absoluteExpiresAt: number; // unix seconds
+}
+
+export interface OAuthTransactionRecord {
+  nonce: string;
+  stateHash: string;
+  shopDomain: string;
+  browserNonceHash: string;
+  expiresAt: Date;
+  consumedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 interface DatabaseSchema {
   shops: Record<string, Shop>;
@@ -47,11 +75,20 @@ interface DatabaseSchema {
   stockAlerts: Record<string, StockAlert[]>; // StockPilot stock alerts
   settings: Record<string, Settings>; // Keyed by shopId
   notificationLogs: Record<string, NotificationLog[]>; // Keyed by shopId
+  tokenFamilies?: Record<string, TokenFamilyRecord>; // Keyed by familyId
+  oauthTransactions?: Record<string, OAuthTransactionRecord>; // Keyed by nonce
+}
+
+export interface RepositoryOptions {
+  customStorePath?: string;
+  inMemoryOnly?: boolean;
 }
 
 export class Repository {
   private dataDir = path.resolve(__dirname, '../../data');
-  private storeFile = path.resolve(this.dataDir, 'store.json');
+  private storeFile: string;
+  private inMemoryOnly: boolean;
+  private options?: RepositoryOptions;
   private db: DatabaseSchema = {
     shops: {},
     sessions: {},
@@ -63,19 +100,64 @@ export class Repository {
     stockAlerts: {},
     settings: {},
     notificationLogs: {},
+    tokenFamilies: {},
   };
   private isLoaded = false;
 
-  constructor() {
+  constructor(options?: RepositoryOptions) {
+    this.options = options;
+    const isIsolated =
+      options?.inMemoryOnly ??
+      (process.env.STOCKPILOT_TEST_ENV === 'true' ||
+        process.env.STOCKPILOT_ISOLATE_STORAGE === 'true' ||
+        process.env.NODE_ENV === 'test' ||
+        process.argv.some(
+          (arg) =>
+            arg.includes('--test') ||
+            arg.includes('.test.') ||
+            arg.endsWith('test.ts') ||
+            arg.endsWith('test.js')
+        ));
+
+    this.inMemoryOnly = Boolean(isIsolated);
+
+    if (options?.customStorePath) {
+      this.storeFile = options.customStorePath;
+    } else if (process.env.STOCKPILOT_STORE_FILE) {
+      this.storeFile = process.env.STOCKPILOT_STORE_FILE;
+    } else {
+      this.storeFile = path.resolve(this.dataDir, 'store.json');
+    }
+
     this.init();
   }
 
+  private createEmptySchema(): DatabaseSchema {
+    return {
+      shops: {},
+      sessions: {},
+      products: {},
+      variants: {},
+      inventoryLevels: {},
+      orders: {},
+      alerts: {},
+      stockAlerts: {},
+      settings: {},
+      notificationLogs: {},
+      tokenFamilies: {},
+      oauthTransactions: {},
+    };
+  }
+
   private init(): void {
-    if (!fs.existsSync(this.dataDir)) {
-      fs.mkdirSync(this.dataDir, { recursive: true });
+    // Default mode: zero fallback to store.json on disk (all in-memory state or MongoDB)
+    if (this.inMemoryOnly || (!this.options?.customStorePath && !process.env.STOCKPILOT_STORE_FILE)) {
+      this.db = this.createEmptySchema();
+      this.isLoaded = true;
+      return;
     }
 
-    if (fs.existsSync(this.storeFile)) {
+    if (this.storeFile && fs.existsSync(this.storeFile)) {
       try {
         const raw = fs.readFileSync(this.storeFile, 'utf8');
         const parsed = JSON.parse(raw);
@@ -90,36 +172,137 @@ export class Repository {
           stockAlerts: parsed.stockAlerts || {},
           settings: parsed.settings || {},
           notificationLogs: parsed.notificationLogs || {},
+          tokenFamilies: parsed.tokenFamilies || {},
+          oauthTransactions: parsed.oauthTransactions || {},
         };
         this.isLoaded = true;
       } catch (err) {
-        console.error('[Repository] Failed to read store.json, creating new database', err);
+        console.error('[Repository] Failed to read store file, creating new database', err);
       }
-    }
-
-    // Remove any legacy fake demo data
-    if (this.db.shops["shop-demo-001"]) {
-      delete this.db.shops["shop-demo-001"];
-      delete this.db.products["shop-demo-001"];
-      delete this.db.variants["shop-demo-001"];
-      delete this.db.inventoryLevels["shop-demo-001"];
-      delete this.db.orders["shop-demo-001"];
-      delete this.db.stockAlerts["shop-demo-001"];
-      delete this.db.settings["shop-demo-001"];
-      delete this.db.notificationLogs["shop-demo-001"];
-      if (this.db.alerts) delete this.db.alerts["shop-demo-001"];
-      this.persist();
     }
   }
 
   private persist(): void {
+    // Zero disk writes allowed for default store.json (store.json persistence completely removed)
+    if (this.inMemoryOnly || (!this.options?.customStorePath && !process.env.STOCKPILOT_STORE_FILE)) {
+      return;
+    }
     try {
       const tempFile = `${this.storeFile}.tmp`;
       fs.writeFileSync(tempFile, JSON.stringify(this.db, null, 2), 'utf8');
       fs.renameSync(tempFile, this.storeFile);
     } catch (err) {
-      console.error('[Repository] Error persisting store.json', err);
+      console.error('[Repository] Error persisting store file', err);
+      throw err;
     }
+  }
+
+  /**
+   * Test isolation helper: switches this repository instance into in-memory only mode
+   * and resets state in RAM without touching disk.
+   */
+  public enableTestIsolation(initialData?: Partial<DatabaseSchema>): void {
+    this.inMemoryOnly = true;
+    this.resetInMemoryState(initialData);
+  }
+
+  /**
+   * Resets in-memory state cleanly (safe for test hooks)
+   */
+  public resetInMemoryState(initialData?: Partial<DatabaseSchema>): void {
+    this.db = {
+      ...this.createEmptySchema(),
+      ...(initialData || {}),
+    };
+  }
+
+  /**
+   * Check if repository is running in isolated in-memory mode
+   */
+  public isInMemory(): boolean {
+    return this.inMemoryOnly;
+  }
+
+  private isMongoAuthoritative(): boolean {
+    const isConnected = isMongoConnected();
+    const isMongo = isConnected && !this.inMemoryOnly;
+
+    // 1. Production must ALWAYS use MongoDB and fail closed if missing, disconnected, or unavailable
+    if (process.env.NODE_ENV === 'production') {
+      if (!isMongo) {
+        throw new AppError(
+          'Production environment requires an active MongoDB connection. Fallback to local memory or store.json is strictly forbidden.',
+          HttpStatus.SERVICE_UNAVAILABLE,
+          ErrorCode.SERVICE_UNAVAILABLE
+        );
+      }
+      return true;
+    }
+
+    // 2. If MongoDB is configured but not connected outside production, refuse fallback
+    const isMongoConfigured = Boolean(
+      process.env.MONGODB_URL ||
+      process.env.mongodb_url ||
+      process.env.MONGODB_URI ||
+      process.env.DATABASE_URL
+    );
+
+    if (isMongoConfigured && !isMongo) {
+      throw new AppError(
+        'MongoDB service is configured but not connected. Refusing fallback to unverified memory state.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+        ErrorCode.SERVICE_UNAVAILABLE
+      );
+    }
+
+    return isMongo;
+  }
+
+  private mapDocToShop(doc: any): Shop {
+    return {
+      id: doc._id?.toString() || doc.id,
+      shopDomain: doc.shopDomain,
+      shopifyShopId: doc.shopifyShopId ?? null,
+      name: doc.name,
+      email: doc.email ?? null,
+      timezone: doc.timezone || 'UTC',
+      currency: doc.currency || 'USD',
+      plan: doc.plan || 'basic',
+      installedAt: doc.installedAt instanceof Date ? doc.installedAt.toISOString() : (doc.installedAt || new Date().toISOString()),
+      uninstalledAt: doc.uninstalledAt instanceof Date ? doc.uninstalledAt.toISOString() : (doc.uninstalledAt ?? null),
+      isDemo: Boolean(doc.isDemo),
+      createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : (doc.createdAt || new Date().toISOString()),
+      updatedAt: doc.updatedAt instanceof Date ? doc.updatedAt.toISOString() : (doc.updatedAt || new Date().toISOString()),
+    };
+  }
+
+  private mapDocToSession(doc: any): ShopifySession {
+    return {
+      id: doc._id?.toString() || doc.id,
+      shopId: doc.shopId,
+      sessionType: doc.sessionType || 'offline',
+      encryptedAccessToken: doc.encryptedAccessToken,
+      iv: doc.iv,
+      authTag: doc.authTag,
+      scope: doc.scope,
+      expiresAt: doc.expiresAt instanceof Date ? doc.expiresAt.toISOString() : (doc.expiresAt ?? null),
+      createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : (doc.createdAt || new Date().toISOString()),
+      updatedAt: doc.updatedAt instanceof Date ? doc.updatedAt.toISOString() : (doc.updatedAt || new Date().toISOString()),
+    };
+  }
+
+  private mapDocToTokenFamily(doc: any): TokenFamilyRecord {
+    return {
+      familyId: doc._id?.toString() || doc.familyId,
+      shopId: doc.shopId,
+      currentJti: doc.currentJti,
+      previousJti: doc.previousJti || undefined,
+      rotatedAt: doc.rotatedAt instanceof Date ? doc.rotatedAt.toISOString() : (doc.rotatedAt || undefined),
+      revoked: Boolean(doc.revoked),
+      revokedReason: doc.revokedReason || undefined,
+      createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : (doc.createdAt || new Date().toISOString()),
+      absoluteExpiresAt: Number(doc.absoluteExpiresAt),
+    };
   }
 
   public seedInitialData(): void {
@@ -128,39 +311,40 @@ export class Repository {
 
   // Shop Operations
   public async getShop(shopId: string): Promise<Shop | null> {
+    if (this.isMongoAuthoritative()) {
+      const doc = await ShopModel.findById(shopId).lean();
+      return doc ? this.mapDocToShop(doc) : null;
+    }
     return this.db.shops[shopId] || null;
   }
 
-  public async getPrimaryShop(): Promise<Shop> {
-    const shops = Object.values(this.db.shops);
-    if (shops.length > 0) return shops[0];
-    const defaultDomain = "conganh-test-lab.myshopify.com";
-    const cleanShop = defaultDomain.replace(/^https?:\/\//, "").replace(/\/$/, "");
-    const shop: Shop = {
-      id: `shop-${cleanShop.replace(/[^a-zA-Z0-9]/g, "_")}`,
-      shopDomain: cleanShop,
-      shopifyShopId: "gid://shopify/Shop/1",
-      name: cleanShop.split(".")[0],
-      email: `contact@${cleanShop}`,
-      timezone: "Asia/Ho_Chi_Minh",
-      currency: "USD",
-      plan: "Standard",
-      installedAt: new Date().toISOString(),
-      uninstalledAt: null,
-      isDemo: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    await this.upsertShop(shop);
-    return shop;
+  public async getPrimaryShop(): Promise<Shop | null> {
+    if (this.isMongoAuthoritative()) {
+      const doc = await ShopModel.findOne({ uninstalledAt: null }).sort({ createdAt: 1 }).lean();
+      return doc ? this.mapDocToShop(doc) : null;
+    }
+    const activeShops = Object.values(this.db.shops).filter((s) => !s.uninstalledAt);
+    if (activeShops.length > 0) return activeShops[0];
+    return null;
   }
 
   public async getShopByDomain(domain: string): Promise<Shop | null> {
     const clean = domain.toLowerCase().trim();
+    if (this.isMongoAuthoritative()) {
+      const doc = await ShopModel.findOne({ shopDomain: clean }).lean();
+      return doc ? this.mapDocToShop(doc) : null;
+    }
     return Object.values(this.db.shops).find((s) => s.shopDomain.toLowerCase() === clean) || null;
   }
 
   public async upsertShop(shop: Shop): Promise<Shop> {
+    if (this.isMongoAuthoritative()) {
+      await ShopModel.findByIdAndUpdate(
+        shop.id,
+        { ...shop, _id: shop.id },
+        { upsert: true, new: true }
+      );
+    }
     this.db.shops[shop.id] = { ...shop, updatedAt: new Date().toISOString() };
     if (!this.db.settings[shop.id]) {
       this.db.settings[shop.id] = {
@@ -182,28 +366,477 @@ export class Repository {
         updatedAt: new Date().toISOString(),
       };
     }
-    this.persist();
-    if (isMongoConnected()) {
-      ShopModel.findByIdAndUpdate(shop.id, { ...shop, _id: shop.id }, { upsert: true }).catch((e) =>
-        console.error('[Repository] MongoDB upsertShop error:', e)
-      );
+    try {
+      this.persist();
+    } catch (e) {
+      if (!isMongoConnected()) throw e;
     }
     return this.db.shops[shop.id];
   }
 
   // Session Operations
   public async getSession(shopId: string): Promise<ShopifySession | null> {
-    return this.db.sessions[shopId] || null;
+    if (this.isMongoAuthoritative()) {
+      const doc = await SessionModel.findOne({ shopId, sessionType: 'offline' }).lean();
+      return doc ? this.mapDocToSession(doc) : null;
+    }
+    const session = this.db.sessions[shopId];
+    if (session && session.sessionType === 'offline') {
+      return { ...session };
+    }
+    return null;
   }
 
   public async saveSession(session: ShopifySession): Promise<void> {
-    this.db.sessions[session.shopId] = { ...session, updatedAt: new Date().toISOString() };
+    const isMongo = this.isMongoAuthoritative();
+
+    if (isMongo) {
+      if (session.sessionType === 'offline') {
+        // Enforce at most ONE offline session per shop using atomic upsert by { shopId, sessionType: 'offline' }
+        await SessionModel.findOneAndUpdate(
+          { shopId: session.shopId, sessionType: 'offline' },
+          {
+            $set: {
+              encryptedAccessToken: session.encryptedAccessToken,
+              iv: session.iv,
+              authTag: session.authTag,
+              scope: session.scope,
+              expiresAt: session.expiresAt ? new Date(session.expiresAt) : null,
+              updatedAt: new Date(),
+            },
+            $setOnInsert: {
+              _id: session.id,
+              shopId: session.shopId,
+              sessionType: 'offline',
+              createdAt: session.createdAt ? new Date(session.createdAt) : new Date(),
+            },
+          },
+          { upsert: true, new: true }
+        );
+      } else {
+        await SessionModel.findByIdAndUpdate(
+          session.id,
+          {
+            ...session,
+            _id: session.id,
+            expiresAt: session.expiresAt ? new Date(session.expiresAt) : null,
+            updatedAt: new Date(),
+          },
+          { upsert: true, new: true }
+        );
+      }
+      return;
+    }
+
+    if (session.sessionType === 'offline') {
+      this.db.sessions[session.shopId] = { ...session, updatedAt: new Date().toISOString() };
+    } else {
+      this.db.sessions[session.id] = { ...session, updatedAt: new Date().toISOString() };
+    }
+    try {
+      this.persist();
+    } catch (e) {
+      if (!isMongoConnected()) throw e;
+    }
+  }
+
+  public async deleteSession(shopId: string): Promise<void> {
+    if (this.isMongoAuthoritative()) {
+      await SessionModel.deleteMany({ shopId });
+      return;
+    }
+    if (this.db.sessions) {
+      for (const key of Object.keys(this.db.sessions)) {
+        if (this.db.sessions[key]?.shopId === shopId || key === shopId) {
+          delete this.db.sessions[key];
+        }
+      }
+      this.persist();
+    }
+  }
+
+  /**
+   * Atomic Shop and Session persistence
+   * Ensures that either both shop and session are successfully persisted, or neither is.
+   * In MongoDB mode: executes in an atomic session transaction.
+   * In local/test mode: updates in-memory snapshot and rolls back on persistence failure.
+   */
+  public async saveShopAndSession(shop: Shop, session: ShopifySession): Promise<void> {
+    const isMongo = this.isMongoAuthoritative();
+
+    if (isMongo) {
+      const dbSession = await mongoose.startSession();
+      try {
+        dbSession.startTransaction();
+        await ShopModel.findByIdAndUpdate(
+          shop.id,
+          { ...shop, _id: shop.id },
+          { upsert: true, session: dbSession, new: true }
+        );
+        if (session.sessionType === 'offline') {
+          await SessionModel.findOneAndUpdate(
+            { shopId: session.shopId, sessionType: 'offline' },
+            {
+              $set: {
+                encryptedAccessToken: session.encryptedAccessToken,
+                iv: session.iv,
+                authTag: session.authTag,
+                scope: session.scope,
+                expiresAt: session.expiresAt ? new Date(session.expiresAt) : null,
+                updatedAt: new Date(),
+              },
+              $setOnInsert: {
+                _id: session.id,
+                shopId: session.shopId,
+                sessionType: 'offline',
+                createdAt: session.createdAt ? new Date(session.createdAt) : new Date(),
+              },
+            },
+            { upsert: true, session: dbSession, new: true }
+          );
+        } else {
+          await SessionModel.findByIdAndUpdate(
+            session.id,
+            { ...session, _id: session.id },
+            { upsert: true, session: dbSession, new: true }
+          );
+        }
+        await dbSession.commitTransaction();
+      } catch (err) {
+        await dbSession.abortTransaction();
+        console.error('[Repository] MongoDB transaction failed in saveShopAndSession:', err);
+        throw err;
+      } finally {
+        dbSession.endSession();
+      }
+      return;
+    }
+
+    // In-memory & local store snapshot update with rollback protection
+    const previousShop = this.db.shops[shop.id];
+    const previousSession = this.db.sessions[session.shopId];
+    const previousSettings = this.db.settings[shop.id];
+
+    try {
+      this.db.shops[shop.id] = { ...shop, updatedAt: new Date().toISOString() };
+      this.db.sessions[session.shopId] = { ...session, updatedAt: new Date().toISOString() };
+      if (!this.db.settings[shop.id]) {
+        this.db.settings[shop.id] = {
+          id: `settings-${shop.id}`,
+          shopId: shop.id,
+          defaultLowStockThreshold: 10,
+          defaultLeadTimeDays: 7,
+          defaultSafetyStockDays: 5,
+          salesVelocityDays: 30,
+          locationScope: 'all',
+          emailEnabled: true,
+          notificationEmail: shop.email || 'merchant@example.com',
+          dailyDigest: true,
+          productOverrides: {},
+          overdueThresholdHours: 24,
+          warningLeadTimeHours: 4,
+          autoAcknowledge: false,
+          excludeTags: [],
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      this.persist();
+    } catch (persistErr) {
+      if (previousShop) {
+        this.db.shops[shop.id] = previousShop;
+      } else {
+        delete this.db.shops[shop.id];
+      }
+      if (previousSession) {
+        this.db.sessions[session.shopId] = previousSession;
+      } else {
+        delete this.db.sessions[session.shopId];
+      }
+      if (!previousSettings) {
+        delete this.db.settings[shop.id];
+      }
+      throw persistErr;
+    }
+  }
+
+  // OAuth Transaction Storage Operations
+  public async createOAuthTransaction(record: OAuthTransactionRecord): Promise<void> {
+    const isMongo = this.isMongoAuthoritative();
+
+    if (isMongo) {
+      try {
+        await OAuthTransactionModel.create({
+          _id: record.nonce,
+          stateHash: record.stateHash,
+          shopDomain: record.shopDomain,
+          browserNonceHash: record.browserNonceHash,
+          expiresAt: record.expiresAt,
+          consumedAt: record.consumedAt,
+        });
+      } catch (err) {
+        console.error('[Repository] Failed to create OAuth transaction in MongoDB:', err);
+        throw err;
+      }
+      return;
+    }
+
+    if (!this.db.oauthTransactions) {
+      this.db.oauthTransactions = {};
+    }
+    this.db.oauthTransactions[record.nonce] = { ...record };
+    try {
+      this.persist();
+    } catch (persistErr) {
+      throw persistErr;
+    }
+  }
+
+  public async consumeOAuthTransaction(
+    nonce: string,
+    shopDomain: string,
+    stateHash: string,
+    browserNonceHash: string
+  ): Promise<boolean> {
+    const isMongo = this.isMongoAuthoritative();
+
+    if (isMongo) {
+      const now = new Date();
+      const updated = await OAuthTransactionModel.findOneAndUpdate(
+        {
+          _id: nonce,
+          shopDomain,
+          stateHash,
+          browserNonceHash,
+          consumedAt: null, // Atomic single-use condition
+          expiresAt: { $gt: now }, // Strict expiry condition
+        },
+        {
+          $set: {
+            consumedAt: now,
+            updatedAt: now,
+          },
+        },
+        { new: true }
+      );
+
+      return Boolean(updated);
+    }
+
+    // In-memory / Test / Local repository path
+    if (!this.db.oauthTransactions || !this.db.oauthTransactions[nonce]) {
+      return false;
+    }
+
+    const tx = this.db.oauthTransactions[nonce];
+    const now = Date.now();
+
+    if (
+      tx.consumedAt !== null ||
+      tx.shopDomain !== shopDomain ||
+      tx.stateHash !== stateHash ||
+      tx.browserNonceHash !== browserNonceHash ||
+      new Date(tx.expiresAt).getTime() <= now
+    ) {
+      return false;
+    }
+
+    tx.consumedAt = new Date();
+    tx.updatedAt = new Date();
     this.persist();
-    if (isMongoConnected()) {
-      SessionModel.findByIdAndUpdate(session.id, { ...session, _id: session.id }, { upsert: true }).catch((e) =>
-        console.error('[Repository] MongoDB saveSession error:', e)
+    return true;
+  }
+
+  public async getOAuthTransaction(nonce: string): Promise<OAuthTransactionRecord | null> {
+    if (this.isMongoAuthoritative()) {
+      const doc = await OAuthTransactionModel.findById(nonce).lean();
+      if (!doc) return null;
+      return {
+        nonce: doc._id,
+        stateHash: doc.stateHash,
+        shopDomain: doc.shopDomain,
+        browserNonceHash: doc.browserNonceHash,
+        expiresAt: doc.expiresAt instanceof Date ? doc.expiresAt : new Date(doc.expiresAt),
+        consumedAt: doc.consumedAt ? (doc.consumedAt instanceof Date ? doc.consumedAt : new Date(doc.consumedAt)) : null,
+        createdAt: doc.createdAt instanceof Date ? doc.createdAt : new Date(doc.createdAt),
+        updatedAt: doc.updatedAt instanceof Date ? doc.updatedAt : new Date(doc.updatedAt),
+      };
+    }
+    if (this.db.oauthTransactions?.[nonce]) {
+      return { ...this.db.oauthTransactions[nonce] };
+    }
+    return null;
+  }
+
+  // Token Family Operations for Multi-Session Refresh Token Rotation
+  public async getTokenFamily(familyId: string, shopId?: string): Promise<TokenFamilyRecord | null> {
+    if (this.isMongoAuthoritative()) {
+      const query: any = { _id: familyId };
+      if (shopId) query.shopId = shopId;
+      const doc = await TokenFamilyModel.findOne(query).lean();
+      return doc ? this.mapDocToTokenFamily(doc) : null;
+    }
+    const record = this.db.tokenFamilies?.[familyId];
+    if (!record) return null;
+    if (shopId && record.shopId !== shopId) return null;
+    return { ...record };
+  }
+
+  public async saveTokenFamily(family: TokenFamilyRecord): Promise<void> {
+    const isMongo = this.isMongoAuthoritative();
+
+    if (isMongo) {
+      const ttlExpiresAt = new Date(family.absoluteExpiresAt * 1000);
+      const rotatedAtDate = family.rotatedAt ? new Date(family.rotatedAt) : null;
+      await TokenFamilyModel.findByIdAndUpdate(
+        family.familyId,
+        {
+          _id: family.familyId,
+          shopId: family.shopId,
+          currentJti: family.currentJti,
+          previousJti: family.previousJti || null,
+          rotatedAt: rotatedAtDate,
+          revoked: family.revoked,
+          revokedReason: family.revokedReason || null,
+          absoluteExpiresAt: family.absoluteExpiresAt,
+          ttlExpiresAt,
+        },
+        { upsert: true, new: true }
       );
     }
+
+    if (!this.db.tokenFamilies) this.db.tokenFamilies = {};
+    this.db.tokenFamilies[family.familyId] = { ...family };
+    try {
+      this.persist();
+    } catch (persistErr) {
+      if (!isMongo) {
+        throw persistErr;
+      }
+    }
+  }
+
+  public async revokeTokenFamily(familyId: string, reason?: string, shopId?: string): Promise<void> {
+    const isMongo = this.isMongoAuthoritative();
+
+    if (isMongo) {
+      const filter: any = { _id: familyId };
+      if (shopId) filter.shopId = shopId;
+      await TokenFamilyModel.updateOne(filter, {
+        $set: {
+          revoked: true,
+          revokedReason: reason || 'Revoked',
+        },
+      });
+    }
+
+    if (this.db.tokenFamilies && this.db.tokenFamilies[familyId]) {
+      if (!shopId || this.db.tokenFamilies[familyId].shopId === shopId) {
+        this.db.tokenFamilies[familyId].revoked = true;
+        this.db.tokenFamilies[familyId].revokedReason = reason || 'Revoked';
+        try {
+          this.persist();
+        } catch (persistErr) {
+          if (!isMongo) throw persistErr;
+        }
+      }
+    }
+  }
+
+  public async revokeAllTokenFamiliesForShop(shopId: string, reason?: string): Promise<void> {
+    const isMongo = this.isMongoAuthoritative();
+
+    if (isMongo) {
+      await TokenFamilyModel.updateMany(
+        { shopId },
+        {
+          $set: {
+            revoked: true,
+            revokedReason: reason || 'Store uninstalled or mass revocation',
+          },
+        }
+      );
+    }
+
+    if (this.db.tokenFamilies) {
+      for (const fam of Object.values(this.db.tokenFamilies)) {
+        if (fam.shopId === shopId) {
+          fam.revoked = true;
+          fam.revokedReason = reason || 'Store uninstalled or mass revocation';
+        }
+      }
+      try {
+        this.persist();
+      } catch (persistErr) {
+        if (!isMongo) throw persistErr;
+      }
+    }
+  }
+
+  /**
+   * Atomic Compare-and-Swap Refresh Token Rotation
+   * Atomically matches familyId, shopId, currentJti, non-revoked, and non-expired.
+   * If matched: advances currentJti to newJti, sets previousJti, and updates rotatedAt.
+   * If not matched: returns null without revoking (caller evaluates grace window or replay).
+   */
+  public async rotateTokenFamily(
+    familyId: string,
+    shopId: string,
+    expectedJti: string,
+    newJti: string
+  ): Promise<TokenFamilyRecord | null> {
+    const now = new Date();
+    const nowSec = Math.floor(now.getTime() / 1000);
+
+    if (this.isMongoAuthoritative()) {
+      const updated = await TokenFamilyModel.findOneAndUpdate(
+        {
+          _id: familyId,
+          shopId,
+          currentJti: expectedJti,
+          revoked: false,
+          absoluteExpiresAt: { $gt: nowSec },
+        },
+        {
+          $set: {
+            currentJti: newJti,
+            previousJti: expectedJti,
+            rotatedAt: now,
+          },
+        },
+        { new: true }
+      ).lean();
+
+      if (!updated) {
+        return null;
+      }
+
+      const mapped = this.mapDocToTokenFamily(updated);
+      if (!this.db.tokenFamilies) this.db.tokenFamilies = {};
+      this.db.tokenFamilies[familyId] = mapped;
+      return mapped;
+    }
+
+    // In-memory test isolation path (emulating atomic CAS behavior)
+    const family = this.db.tokenFamilies?.[familyId];
+    if (
+      !family ||
+      family.shopId !== shopId ||
+      family.currentJti !== expectedJti ||
+      family.revoked ||
+      (family.absoluteExpiresAt && nowSec > family.absoluteExpiresAt)
+    ) {
+      return null;
+    }
+
+    family.previousJti = expectedJti;
+    family.currentJti = newJti;
+    family.rotatedAt = now.toISOString();
+    try {
+      this.persist();
+    } catch (e) {
+      // In-memory mode does not throw on disk persistence
+    }
+    return { ...family };
   }
 
   // Settings Operations
@@ -776,9 +1409,9 @@ export class Repository {
       restockRecommendations,
       recentOrders,
       monitoringStatus: {
-        isShopifyConnected: !shop?.isDemo,
-        shopDomain: shop?.shopDomain || 'stockpilot-demo.myshopify.com',
-        isDemoMode: shop?.isDemo ?? true,
+        isShopifyConnected: Boolean(shop && !shop.isDemo),
+        shopDomain: shop?.shopDomain || '',
+        isDemoMode: Boolean(shop?.isDemo),
         lastSyncedAt: new Date().toISOString(),
         activeAlertsCount,
         emailEnabled: settings.emailEnabled,

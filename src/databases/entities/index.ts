@@ -8,3 +8,5 @@ export { default as ProductVariant, IProductVariant } from './ProductVariant';
 export { default as Settings, ISettings } from './Settings';
 export { default as NotificationLog, INotificationLog } from './NotificationLog';
 export { default as Conversation, IConversation } from './Conversation';
+export { default as OAuthTransaction, IOAuthTransaction } from './OAuthTransaction';
+export { default as TokenFamily, ITokenFamily } from './TokenFamily';

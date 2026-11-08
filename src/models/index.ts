@@ -8,5 +8,7 @@ export {
   Alert as AlertModel,
   Settings as SettingsModel,
   NotificationLog as NotificationLogModel,
+  TokenFamily as TokenFamilyModel,
+  OAuthTransaction as OAuthTransactionModel,
 } from '../databases/entities';
 
