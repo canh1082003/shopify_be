@@ -263,8 +263,8 @@ export class ShopifyService {
     }
 
     const session = await repository.getSession(shopId);
-    let accessToken = '';
-    if (session && session.encryptedAccessToken && session.iv && session.authTag) {
+    let accessToken = process.env.SHOPIFY_ACCESS_TOKEN || '';
+    if (!accessToken && session && session.encryptedAccessToken && session.iv && session.authTag) {
       try {
         accessToken = decryptToken(session.encryptedAccessToken, session.iv, session.authTag);
       } catch (e) {
